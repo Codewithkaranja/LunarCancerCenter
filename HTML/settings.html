@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lunar Cancer Care HMIS - Settings</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --success: #2ecc71;
+        --warning: #f39c12;
+        --light: #ecf0f1;
+        --dark: #2c3e50;
+        --gray: #95a5a6;
+        --admin: #9b59b6;
+        --doctor: #3498db;
+        --nurse: #2ecc71;
+        --pharmacist: #f39c12;
+        --cashier: #e67e22;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      body {
+        background-color: #f5f7fa;
+        color: #333;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+
+      .container {
+        display: flex;
+        flex: 1;
+      }
+
+      /* Sidebar Styles */
+      .sidebar {
+        width: 250px;
+        background: var(--primary);
+        color: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .sidebar-header {
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.2);
+        display: flex;
+        align-items: center;
+      }
+
+      .sidebar-header img {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+      }
+
+      .sidebar-header h2 {
+        font-size: 1.2rem;
+        font-weight: 600;
+      }
+
+      .sidebar-menu {
+        padding: 15px 0;
+      }
+
+      .sidebar-menu ul {
+        list-style: none;
+      }
+
+      .sidebar-menu li {
+        padding: 0;
+        margin: 5px 0;
+      }
+
+      .sidebar-menu a {
+        color: white;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        transition: all 0.3s;
+      }
+
+      .sidebar-menu a:hover,
+      .sidebar-menu a.active {
+        background: rgba(255, 255, 255, 0.1);
+        border-left: 4px solid var(--secondary);
+      }
+
+      .sidebar-menu i {
+        margin-right: 10px;
+        font-size: 1.1rem;
+      }
+
+      /* Main Content Styles */
+      .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Header Styles */
+      header {
+        background: white;
+        padding: 15px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .user-info img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+      }
+
+      .user-details h3 {
+        font-size: 1rem;
+        margin-bottom: 3px;
+        text-transform: capitalize;
+      }
+
+      .user-details p {
+        font-size: 0.8rem;
+        color: var(--gray);
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .header-actions .notification {
+        position: relative;
+        cursor: pointer;
+      }
+
+      .header-actions .notification .badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: var(--accent);
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 0.7rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .header-actions .btn-logout {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.3s;
+      }
+
+      .header-actions .btn-logout:hover {
+        background: var(--secondary);
+      }
+
+      /* Settings Content Styles */
+      .settings-content {
+        padding: 20px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .breadcrumb {
+        font-size: 0.9rem;
+        color: var(--gray);
+        margin-bottom: 10px;
+      }
+
+      .breadcrumb a {
+        color: var(--secondary);
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+
+      .breadcrumb a:hover {
+        text-decoration: underline;
+      }
+
+      .page-title {
+        font-size: 1.8rem;
+        color: var(--primary);
+        font-weight: 600;
+        margin: 5px 0 15px;
+      }
+
+      /* Settings Navigation */
+      .settings-nav {
+        display: flex;
+        background: white;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        overflow-x: auto;
+      }
+
+      .nav-btn {
+        padding: 10px 20px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        border-radius: 4px;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: all 0.3s;
+      }
+
+      .nav-btn.active {
+        background: var(--secondary);
+        color: white;
+      }
+
+      .nav-btn:hover:not(.active) {
+        background: #f8f9fa;
+      }
+
+      /* Settings Sections */
+      .settings-section {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        margin-bottom: 20px;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .section-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+      }
+
+      .section-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .form-group label {
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        border-color: var(--secondary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+      }
+
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .checkbox-group input {
+        width: auto;
+      }
+
+      .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 24px;
+      }
+
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.4s;
+        border-radius: 24px;
+      }
+
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+      }
+
+      input:checked + .slider {
+        background-color: var(--success);
+      }
+
+      input:checked + .slider:before {
+        transform: translateX(26px);
+      }
+
+      .permissions-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+      }
+
+      .permissions-table th,
+      .permissions-table td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+      }
+
+      .permissions-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+      }
+
+      .permissions-table tr:hover {
+        background: #f8f9fa;
+      }
+
+      .permission-check {
+        text-align: center;
+      }
+
+      .user-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .user-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+      }
+
+      .user-details {
+        flex: 1;
+      }
+
+      .user-name {
+        font-weight: 600;
+      }
+
+      .user-role {
+        font-size: 0.8rem;
+        color: var(--gray);
+      }
+
+      .user-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .action-btn {
+        padding: 6px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.3s;
+      }
+
+      .btn-edit {
+        background: rgba(46, 204, 113, 0.2);
+        color: var(--success);
+      }
+
+      .btn-edit:hover {
+        background: rgba(46, 204, 113, 0.3);
+      }
+
+      .btn-delete {
+        background: rgba(231, 76, 60, 0.2);
+        color: var(--accent);
+      }
+
+      .btn-delete:hover {
+        background: rgba(231, 76, 60, 0.3);
+      }
+
+      .backup-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .backup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .backup-title {
+        font-weight: 600;
+      }
+
+      .backup-details {
+        font-size: 0.9rem;
+        color: var(--gray);
+      }
+
+      .backup-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .btn {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s;
+      }
+
+      .btn-primary {
+        background: var(--secondary);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: var(--primary);
+      }
+
+      .btn-success {
+        background: var(--success);
+        color: white;
+      }
+
+      .btn-success:hover {
+        background: #27ae60;
+      }
+
+      .btn-danger {
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #c0392b;
+      }
+
+      .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+      }
+
+      /* Modal Styles */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-content {
+        background-color: white;
+        border-radius: 8px;
+        width: 500px;
+        max-width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .modal-header {
+        padding: 15px 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        color: #777;
+      }
+
+      .modal-body {
+        padding: 20px;
+      }
+
+      .modal-form {
+        display: grid;
+        gap: 15px;
+      }
+
+      .modal-footer {
+        padding: 15px 20px;
+        border-top: 1px solid #eee;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      /* Alert Styles */
+      .alert {
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .alert-success {
+        background: rgba(46, 204, 113, 0.2);
+        color: var(--success);
+        border-left: 4px solid var(--success);
+      }
+
+      .alert-error {
+        background: rgba(231, 76, 60, 0.2);
+        color: var(--accent);
+        border-left: 4px solid var(--accent);
+      }
+
+      .alert-icon {
+        font-size: 1.5rem;
+      }
+
+      /* Footer Styles */
+      footer {
+        background: var(--primary);
+        color: white;
+        padding: 30px 20px;
+        margin-top: auto;
+      }
+
+      .footer-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .footer-section h3 {
+        font-size: 1.2rem;
+        margin-bottom: 15px;
+        position: relative;
+        padding-bottom: 10px;
+      }
+
+      .footer-section h3::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 50px;
+        height: 2px;
+        background: var(--secondary);
+      }
+
+      .footer-links {
+        list-style: none;
+      }
+
+      .footer-links li {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+      }
+
+      .footer-links a {
+        color: #ecf0f1;
+        text-decoration: none;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .footer-links a:hover {
+        color: var(--secondary);
+        padding-left: 5px;
+      }
+
+      .footer-bottom {
+        text-align: center;
+        padding-top: 20px;
+        margin-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      /* Responsive Styles */
+      @media (max-width: 1200px) {
+        .section-content {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 992px) {
+        .settings-nav {
+          flex-wrap: wrap;
+        }
+
+        .footer-content {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          flex-direction: column;
+        }
+
+        .sidebar {
+          width: 100%;
+          height: auto;
+        }
+
+        .sidebar-menu ul {
+          display: flex;
+          overflow-x: auto;
+        }
+
+        .sidebar-menu li {
+          flex: 0 0 auto;
+        }
+
+        .page-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 15px;
+        }
+
+        .settings-nav {
+          flex-direction: column;
+        }
+
+        .user-actions {
+          flex-direction: column;
+        }
+
+        .backup-actions {
+          flex-direction: column;
+        }
+
+        header {
+          flex-direction: column;
+          text-align: center;
+          padding: 15px;
+        }
+
+        .user-info {
+          margin-bottom: 15px;
+        }
+
+        .footer-content {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 576px) {
+        .form-actions {
+          flex-direction: column;
+        }
+
+        .btn {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <img
+            src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjIgMTJoLTQiPjwvcGF0aD48cGF0aCBkPSJNNiAxMmg0Ij48L3BhdGg+PHJlY3QgeD0iMyIgeT0iNSIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiPjwvcmVjdD48cGF0aCBkPSJNMTIgMTB20iPjwvcGF0aD48L3N2Zz4="
+            alt="Logo"
+          />
+          <h2>Lunar Cancer Care</h2>
+        </div>
+        <div class="sidebar-menu">
+          <ul>
+            <li>
+              <a href="dashboard.html"><i class="fas fa-home"></i> Dashboard</a>
+            </li>
+            <li>
+              <a href="patients.html"
+                ><i class="fas fa-user-injured"></i> Patients</a
+              >
+            </li>
+            <li>
+              <a href="appointments.html"
+                ><i class="fas fa-calendar-check"></i> Appointments</a
+              >
+            </li>
+            <li>
+              <a href="inventory.html"
+                ><i class="fas fa-pills"></i> Inventory</a
+              >
+            </li>
+            <li>
+              <a href="pharmacy.html"
+                ><i class="fas fa-prescription"></i> Pharmacy</a
+              >
+            </li>
+            <li>
+              <a href="staff.html"><i class="fas fa-user-md"></i> Staff</a>
+            </li>
+            <li>
+              <a href="billing.html"
+                ><i class="fas fa-file-invoice-dollar"></i> Billing</a
+              >
+            </li>
+            <li>
+              <a href="reports.html"
+                ><i class="fas fa-chart-bar"></i> Reports</a
+              >
+            </li>
+            <li>
+              <a href="settings.html" class="active"
+                ><i class="fas fa-cog"></i> Settings</a
+              >
+            </li>
+            <li>
+              <a href="index.html"
+                ><i class="fas fa-sign-out-alt"></i> Logout</a
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Header -->
+        <header>
+          <div class="user-info">
+            <img
+              src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YjU5YjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWjvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+"
+              alt="User"
+            />
+            <div class="user-details">
+              <h3 id="current-user-name">Admin User</h3>
+              <p id="current-user-role">System Administrator</p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <div class="notification">
+              <i class="fas fa-bell"></i>
+              <span class="badge">3</span>
+            </div>
+            <button class="btn-logout" onclick="logout()">Logout</button>
+          </div>
+        </header>
+
+        <!-- Settings Content -->
+        <div class="settings-content">
+          <div class="page-header">
+            <div>
+              <div class="breadcrumb">
+                <a href="dashboard.html">Dashboard</a> > Settings
+              </div>
+              <h1 class="page-title">System Settings</h1>
+            </div>
+          </div>
+
+          <!-- Settings Navigation -->
+          <div class="settings-nav">
+            <button class="nav-btn active" data-section="user-management">
+              User & Role Management
+            </button>
+            <button class="nav-btn" data-section="access-control">
+              Access Control & Security
+            </button>
+            <button class="nav-btn" data-section="system-preferences">
+              System Preferences
+            </button>
+            <button class="nav-btn" data-section="modules-features">
+              Modules & Features
+            </button>
+            <button class="nav-btn" data-section="data-backup">
+              Data Backup & Restore
+            </button>
+            <button class="nav-btn" data-section="notifications">
+              Notifications & Alerts
+            </button>
+          </div>
+
+          <!-- Alert Container -->
+          <div id="alert-container"></div>
+
+          <!-- User & Role Management Section -->
+          <div class="settings-section" id="user-management-section">
+            <div class="section-header">
+              <h2 class="section-title">User & Role Management</h2>
+              <button class="btn btn-primary" id="add-user-btn">
+                <i class="fas fa-plus"></i> Add New User
+              </button>
+            </div>
+            <div class="section-content">
+              <div class="form-group">
+                <label for="new-user-name">Full Name</label>
+                <input
+                  type="text"
+                  id="new-user-name"
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div class="form-group">
+                <label for="new-user-email">Email Address</label>
+                <input
+                  type="email"
+                  id="new-user-email"
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div class="form-group">
+                <label for="new-user-role">Role</label>
+                <select id="new-user-role">
+                  <option value="">Select Role</option>
+                  <option value="admin">Administrator</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="pharmacist">Pharmacist</option>
+                  <option value="cashier">Cashier</option>
+                  <option value="manager">Manager</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="new-user-department">Department</label>
+                <select id="new-user-department">
+                  <option value="">Select Department</option>
+                  <option value="oncology">Oncology</option>
+                  <option value="radiotherapy">Radiotherapy</option>
+                  <option value="pharmacy">Pharmacy</option>
+                  <option value="nursing">Nursing</option>
+                  <option value="finance">Finance</option>
+                  <option value="administration">Administration</option>
+                </select>
+              </div>
+            </div>
+
+            <h3 style="margin: 20px 0 15px">Existing Users</h3>
+            <div class="section-content" id="users-container">
+              <!-- Users will be populated dynamically -->
+            </div>
+
+            <h3 style="margin: 20px 0 15px">Role Permissions</h3>
+            <table class="permissions-table" id="permissions-table">
+              <!-- Permissions will be populated dynamically -->
+            </table>
+
+            <div class="form-actions">
+              <button class="btn" id="cancel-user-changes">Cancel</button>
+              <button class="btn btn-primary" id="save-user-changes">
+                Save Changes
+              </button>
+            </div>
+          </div>
+
+          <!-- System Preferences Section -->
+          <div
+            class="settings-section"
+            id="system-preferences-section"
+            style="display: none"
+          >
+            <div class="section-header">
+              <h2 class="section-title">System Preferences</h2>
+            </div>
+            <div class="section-content">
+              <div class="form-group">
+                <label for="hospital-name">Hospital Name</label>
+                <input
+                  type="text"
+                  id="hospital-name"
+                  value="Lunar Cancer Care"
+                  placeholder="Enter hospital name"
+                />
+              </div>
+              <div class="form-group">
+                <label for="hospital-address">Hospital Address</label>
+                <input
+                  type="text"
+                  id="hospital-address"
+                  value="123 Medical Plaza, Nairobi, Kenya"
+                  placeholder="Enter hospital address"
+                />
+              </div>
+              <div class="form-group">
+                <label for="hospital-phone">Hospital Phone</label>
+                <input
+                  type="text"
+                  id="hospital-phone"
+                  value="+254 700 123 456"
+                  placeholder="Enter hospital phone"
+                />
+              </div>
+              <div class="form-group">
+                <label for="hospital-email">Hospital Email</label>
+                <input
+                  type="email"
+                  id="hospital-email"
+                  value="info@lunarcancercare.com"
+                  placeholder="Enter hospital email"
+                />
+              </div>
+              <div class="form-group">
+                <label for="timezone">Timezone</label>
+                <select id="timezone">
+                  <option value="east-africa" selected>
+                    East Africa Time (EAT)
+                  </option>
+                  <option value="utc">UTC</option>
+                  <option value="gmt">GMT</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="date-format">Date Format</label>
+                <select id="date-format">
+                  <option value="dd-mm-yyyy" selected>DD-MM-YYYY</option>
+                  <option value="mm-dd-yyyy">MM-DD-YYYY</option>
+                  <option value="yyyy-mm-dd">YYYY-MM-DD</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="time-format">Time Format</label>
+                <select id="time-format">
+                  <option value="12h" selected>12-hour format</option>
+                  <option value="24h">24-hour format</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="report-period">Default Reporting Period</label>
+                <select id="report-period">
+                  <option value="monthly" selected>Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn" id="cancel-preferences">Cancel</button>
+              <button class="btn btn-primary" id="save-preferences">
+                Save Preferences
+              </button>
+            </div>
+          </div>
+
+          <!-- Data Backup Section -->
+          <div
+            class="settings-section"
+            id="data-backup-section"
+            style="display: none"
+          >
+            <div class="section-header">
+              <h2 class="section-title">Data Backup & Restore</h2>
+            </div>
+            <div class="section-content">
+              <div class="backup-card">
+                <div class="backup-header">
+                  <div class="backup-title">Last Backup</div>
+                  <div class="backup-actions">
+                    <button class="btn btn-success" id="download-backup-btn">
+                      <i class="fas fa-download"></i> Download
+                    </button>
+                  </div>
+                </div>
+                <div class="backup-details" id="last-backup-details">
+                  <!-- Last backup details will be populated dynamically -->
+                </div>
+              </div>
+              <div class="backup-card">
+                <div class="backup-header">
+                  <div class="backup-title">Backup Schedule</div>
+                </div>
+                <div class="form-group">
+                  <label for="backup-frequency">Backup Frequency</label>
+                  <select id="backup-frequency">
+                    <option value="daily">Daily</option>
+                    <option value="weekly" selected>Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="backup-time">Backup Time</label>
+                  <input type="time" id="backup-time" value="02:00" />
+                </div>
+                <div class="checkbox-group">
+                  <input type="checkbox" id="backup-retention" checked />
+                  <label for="backup-retention">Keep backups for 30 days</label>
+                </div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" id="create-backup-btn">
+                <i class="fas fa-plus"></i> Create Backup Now
+              </button>
+              <button class="btn" id="restore-backup-btn">
+                <i class="fas fa-upload"></i> Restore from Backup
+              </button>
+            </div>
+          </div>
+
+          <!-- Access Control Section -->
+          <div
+            class="settings-section"
+            id="access-control-section"
+            style="display: none"
+          >
+            <div class="section-header">
+              <h2 class="section-title">Access Control & Security</h2>
+            </div>
+            <div class="section-content">
+              <div class="form-group">
+                <label for="password-policy">Password Policy</label>
+                <select id="password-policy">
+                  <option value="low">Low (6+ characters)</option>
+                  <option value="medium" selected>
+                    Medium (8+ characters, letters and numbers)
+                  </option>
+                  <option value="high">
+                    High (10+ characters, uppercase, lowercase, numbers, special
+                    characters)
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="session-timeout">Session Timeout</label>
+                <select id="session-timeout">
+                  <option value="15">15 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="60" selected>60 minutes</option>
+                  <option value="120">2 hours</option>
+                  <option value="240">4 hours</option>
+                </select>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="two-factor-auth" />
+                <label for="two-factor-auth"
+                  >Enable Two-Factor Authentication</label
+                >
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="login-notifications" checked />
+                <label for="login-notifications"
+                  >Send email notifications for new logins</label
+                >
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="ip-restrictions" />
+                <label for="ip-restrictions">Enable IP restrictions</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn" id="cancel-security">Cancel</button>
+              <button class="btn btn-primary" id="save-security">
+                Save Security Settings
+              </button>
+            </div>
+          </div>
+
+          <!-- Modules & Features Section -->
+          <div
+            class="settings-section"
+            id="modules-features-section"
+            style="display: none"
+          >
+            <div class="section-header">
+              <h2 class="section-title">Modules & Features</h2>
+            </div>
+            <div class="section-content">
+              <div class="checkbox-group">
+                <input type="checkbox" id="module-patients" checked disabled />
+                <label for="module-patients">Patients Module (Required)</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="module-appointments" checked />
+                <label for="module-appointments">Appointments Module</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="module-inventory" checked />
+                <label for="module-inventory">Inventory Module</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="module-pharmacy" checked />
+                <label for="module-pharmacy">Pharmacy Module</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="module-billing" checked />
+                <label for="module-billing">Billing Module</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="module-reports" checked />
+                <label for="module-reports">Reports Module</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="module-telemedicine" />
+                <label for="module-telemedicine">Telemedicine Features</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="module-mobile" />
+                <label for="module-mobile">Mobile App Integration</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn" id="cancel-modules">Cancel</button>
+              <button class="btn btn-primary" id="save-modules">
+                Save Module Settings
+              </button>
+            </div>
+          </div>
+
+          <!-- Notifications Section -->
+          <div
+            class="settings-section"
+            id="notifications-section"
+            style="display: none"
+          >
+            <div class="section-header">
+              <h2 class="section-title">Notifications & Alerts</h2>
+            </div>
+            <div class="section-content">
+              <div class="form-group">
+                <label for="notification-method"
+                  >Default Notification Method</label
+                >
+                <select id="notification-method">
+                  <option value="in-app" selected>In-App Notifications</option>
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                  <option value="all">All Methods</option>
+                </select>
+              </div>
+              <h3 style="margin: 20px 0 15px">Notification Preferences</h3>
+              <div class="checkbox-group">
+                <input type="checkbox" id="notify-appointments" checked />
+                <label for="notify-appointments">Appointment reminders</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="notify-medications" checked />
+                <label for="notify-medications"
+                  >Medication refill reminders</label
+                >
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="notify-billing" checked />
+                <label for="notify-billing"
+                  >Billing and payment notifications</label
+                >
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="notify-system" checked />
+                <label for="notify-system"
+                  >System alerts and maintenance notices</label
+                >
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="notify-emergency" checked />
+                <label for="notify-emergency">Emergency alerts</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn" id="cancel-notifications">Cancel</button>
+              <button class="btn btn-primary" id="save-notifications">
+                Save Notification Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <div class="footer-bottom">
+        <p>
+          &copy; 2025 Lunar Cancer Care HMIS. All rights reserved. | Designed
+          for better healthcare management
+        </p>
+        <p style="margin: 0; font-size: 13px; color: #777">
+          Crafted with <span style="color: red">❤</span> by
+          <a
+            href="https://wa.me/254723562484?text=Hello%20there,%20I%20Need%20a%20SoftWare"
+            target="_blank"
+            style="
+              color: rgb(3, 184, 245);
+              text-decoration: none;
+              font-weight: 500;
+            "
+          >
+            @Saraha_Devs
+          </a>
+        </p>
+      </div>
+    </footer>
+
+    <!-- Edit User Modal -->
+    <div class="modal" id="edit-user-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Edit User</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form class="modal-form" id="edit-user-form">
+            <input type="hidden" id="edit-user-id" />
+            <div class="form-group">
+              <label for="edit-user-name">Full Name</label>
+              <input type="text" id="edit-user-name" required />
+            </div>
+            <div class="form-group">
+              <label for="edit-user-email">Email Address</label>
+              <input type="email" id="edit-user-email" required />
+            </div>
+            <div class="form-group">
+              <label for="edit-user-role">Role</label>
+              <select id="edit-user-role" required>
+                <option value="">Select Role</option>
+                <option value="admin">Administrator</option>
+                <option value="doctor">Doctor</option>
+                <option value="nurse">Nurse</option>
+                <option value="pharmacist">Pharmacist</option>
+                <option value="cashier">Cashier</option>
+                <option value="manager">Manager</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="edit-user-department">Department</label>
+              <select id="edit-user-department">
+                <option value="">Select Department</option>
+                <option value="oncology">Oncology</option>
+                <option value="radiotherapy">Radiotherapy</option>
+                <option value="pharmacy">Pharmacy</option>
+                <option value="nursing">Nursing</option>
+                <option value="finance">Finance</option>
+                <option value="administration">Administration</option>
+              </select>
+            </div>
+            <div class="checkbox-group">
+              <input type="checkbox" id="edit-user-active" checked />
+              <label for="edit-user-active">User is active</label>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" id="cancel-edit-user">Cancel</button>
+          <button class="btn btn-primary" id="save-edit-user">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restore Backup Modal -->
+    <div class="modal" id="restore-backup-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Restore from Backup</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form class="modal-form" id="restore-backup-form">
+            <div class="form-group">
+              <label for="backup-file">Select Backup File</label>
+              <input type="file" id="backup-file" accept=".zip,.backup,.json" />
+            </div>
+            <div class="checkbox-group">
+              <input type="checkbox" id="backup-confirm" />
+              <label for="backup-confirm"
+                >I understand this will replace all current data</label
+              >
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" id="cancel-restore">Cancel</button>
+          <button class="btn btn-primary" id="confirm-restore">
+            Restore Backup
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/SCRIPTS/settings.js"></script>
+  </body>
+</html>
