@@ -404,9 +404,9 @@ function handleSortDropdown(value) {
 }
 
 // Render patients table
-function getPatientId(patient) {
+/*function getPatientId(patient) {
   return patient.id || patient._id; // normalize frontend vs backend
-}
+}*/
 
 function renderPatients() {
   const tbody = document.querySelector('.patients-table tbody');
@@ -423,7 +423,7 @@ function renderPatients() {
     const statusClass = `status-${patient.status}`;
     const statusText = patient.status.charAt(0).toUpperCase() + patient.status.slice(1);
     
-    const patientId = getPatientId(patient); // ✅ normalize id
+    const patientId = normalizeId(patient); // 🔑 use normalizeId consistently
     
     row.innerHTML = `
       <td>${patientId}</td>
@@ -461,48 +461,78 @@ function renderPatients() {
   addActionButtonListeners();
 }
 
+
 // Add event listeners to action buttons
 function addActionButtonListeners() {
   // View button
   document.querySelectorAll('.btn-view').forEach(btn => {
-    btn.addEventListener('click', () => viewPatient(btn.dataset.id));
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      viewPatient(id);
+    });
   });
-  
+
   // Edit button
   document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => editPatient(btn.dataset.id));
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      editPatient(id);
+    });
   });
-  
+
   // Prescription button
   document.querySelectorAll('.btn-prescription').forEach(btn => {
-    btn.addEventListener('click', () => handlePrescription(btn.dataset.id));
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      handlePrescription(id);
+    });
   });
-  
+
   // Billing button
   document.querySelectorAll('.btn-billing').forEach(btn => {
-    btn.addEventListener('click', () => handleBilling(btn.dataset.id));
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      handleBilling(id);
+    });
   });
 }
 
+
 // Handle pagination
 // Handle pagination (backend-driven)
-function handlePagination(button) {
-  const totalPages = Math.ceil(totalCount / patientsPerPage); // optional for disabling buttons locally
+async function handlePagination(button) {
+  const totalPages = Math.ceil(totalCount / patientsPerPage);
 
   if (button.textContent.includes('Previous') && currentPage > 1) {
     currentPage--;
   } else if (button.textContent.includes('Next') && currentPage < totalPages) {
     currentPage++;
   } else if (!isNaN(button.textContent)) {
-    currentPage = parseInt(button.textContent);
+    currentPage = parseInt(button.textContent, 10);
   } else {
     return;
   }
 
-  // Fetch the page data from backend
- // Fetch patients from backend with pagination
+  try {
+    // ✅ Fetch patients from backend with pagination
+    const response = await fetch(
+      `${API_BASE}/api/patients?page=${currentPage}&limit=${patientsPerPage}`
+    );
+    if (!response.ok) throw new Error("Failed to fetch patients");
 
+    const data = await response.json();
+    allPatients = data.patients;      // store new list
+    totalCount = data.totalCount;     // keep count updated
+    filteredPatients = [...allPatients]; // reset filters if needed
+
+    renderPatients();
+    renderPaginationControls(); // optional: re-render buttons, highlight current page
+  } catch (err) {
+    console.error(err);
+    alert("Error loading patients.");
+  }
 }
+
 async function fetchPatients(page = 1, limit = 5) {
   try {
     const response = await fetch(`${API_BASE}/api/patients?page=${page}&limit=${limit}`);
@@ -561,21 +591,21 @@ function updatePagination(totalCount) {
 }
 
 // View patient details
-function getPatientId(patient) {
-  return patient._id || patient.id; // backend first
+function normalizeId(patient) {
+  return patient._id || patient.id; // prefer backend ID, fallback frontend
 }
 
 function viewPatient(patientId) {
-  const patient = allPatients.find(p => getPatientId(p) === patientId);
+  const patient = allPatients.find(p => normalizeId(p) === patientId);
   if (!patient) {
     alert("Patient not found.");
     return;
   }
 
-  // In a real app, replace this alert with a modal or details view
+  // Replace with modal in production
   alert(
     `Viewing patient: ${patient.firstName} ${patient.lastName}\n` +
-    `ID: ${getPatientId(patient)}\n` +
+    `ID: ${normalizeId(patient)}\n` +
     `Diagnosis: ${patient.diagnosis || "N/A"}`
   );
 }
@@ -589,9 +619,12 @@ function normalizeId(patient) {
 
 function editPatient(patientId) {
   const patient = allPatients.find(p => normalizeId(p) === patientId);
-  if (!patient) return;
+  if (!patient) {
+    alert("Patient not found.");
+    return;
+  }
 
-  // Prefill modal fields with patient data
+  // Prefill modal fields
   document.getElementById("first-name").value = patient.firstName || "";
   document.getElementById("last-name").value = patient.lastName || "";
   document.getElementById("dob").value = patient.dob ? patient.dob.split("T")[0] : "";
@@ -617,11 +650,12 @@ function editPatient(patientId) {
   const modal = document.getElementById("patientModal");
   modal.dataset.patientId = normalizeId(patient);
 
-  // Update modal title for clarity
+  // Update modal title
   document.querySelector(".modal-title").textContent = "Edit Patient";
 
   openModal();
 }
+
 
 
 // Calculate date of birth from age
@@ -811,84 +845,132 @@ function exportPDF() {
     return;
   }
 
-  if (typeof jsPDF === 'undefined') {
-    alert('jsPDF library is not loaded. Please include jsPDF in your project.');
-    return;
-  }
-
+  const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Header
-  doc.setFontSize(16);
-  doc.text('Patient List Report', pageWidth / 2, 15, { align: 'center' });
-  doc.setFontSize(10);
-  doc.text(`Export Date: ${new Date().toLocaleDateString()}`, pageWidth / 2, 22, { align: 'center' });
+  // Placeholder logo (replace later with your real hospital logo)
+  const logoUrl = "https://upload.wikimedia.org/wikipedia/commons/6/6e/Pink_ribbon.svg";
 
-  const headers = [
-    'ID', 'First Name', 'Last Name', 'Age', 'Gender', 'Diagnosis', 'Stage', 
-    'Doctor', 'Next Appointment', 'Status', 'Phone', 'Email', 'Address',
-    'Diagnosis Date', 'Treatment Plan', 'Allergies', 'Medical History',
-    'Insurance Provider', 'Insurance ID', 'Coverage', 'Valid Until'
-  ];
+  // Function to draw header on every page
+  function drawHeader(pageNumber, totalPages) {
+    // Logo
+    doc.addImage(logoImg, "PNG", pageWidth / 2 - 10, 5, 20, 20);
 
-  const rows = filteredPatients.map(p => [
-    p.id,
-    p.firstName,
-    p.lastName,
-    p.age,
-    p.gender,
-    p.diagnosis,
-    p.stage,
-    p.doctor,
-    formatDate(p.nextAppointment),
-    p.status,
-    p.phone,
-    p.email,
-    p.address,
-    p.diagnosisDate,
-    p.treatmentPlan,
-    p.allergies,
-    p.medicalHistory,
-    p.insuranceProvider,
-    p.insuranceId,
-    p.coverage,
-    p.validUntil
-  ]);
+    // Title
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Patient List Report", pageWidth / 2, 30, { align: "center" });
 
-  if (doc.autoTable) {
-    doc.autoTable({
-      head: [headers],
-      body: rows,
-      startY: 30,
-      theme: 'grid',
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-      alternateRowStyles: { fillColor: [240, 240, 240] },
-      margin: { top: 30 },
-   didDrawPage: function (data) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  doc.setFontSize(8);
-  doc.text(`Page ${doc.internal.getCurrentPageInfo().pageNumber}`, pageWidth - 20, 290, { align: 'right' });
-}
-
-    });
-  } else {
-    // Fallback: simple text table
-    let y = 30;
-    rows.forEach(row => {
-      y += 8;
-      if (y > 280) {
-        doc.addPage();
-        y = 30;
-      }
-      doc.text(row.join(' | '), 14, y);
-    });
+    // Export Date
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Export Date: ${new Date().toLocaleDateString()}`,
+      pageWidth / 2,
+      36,
+      { align: "center" }
+    );
   }
 
-  doc.save(`patients_report_${new Date().toISOString().slice(0, 10)}.pdf`);
-}
+  // Function to draw footer with page numbers
+  function drawFooter(pageNumber, totalPages) {
+    doc.setFontSize(8);
+    doc.text(
+      `Page ${pageNumber} of ${totalPages}`,
+      pageWidth - 20,
+      290,
+      { align: "right" }
+    );
+  }
 
+  // Load the logo image
+  const logoImg = new Image();
+  logoImg.crossOrigin = "Anonymous";
+  logoImg.src = logoUrl;
+
+  logoImg.onload = function () {
+    let y = 45;
+    const marginX = 14;
+    const lineHeight = 6;
+
+    // Draw header for page 1
+    drawHeader(1, 1);
+
+    filteredPatients.forEach((p, i) => {
+      const startY = y;
+
+      const cardWidth = pageWidth - marginX * 2;
+      const cardPadding = 5;
+
+      // Title
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Patient #${i + 1}`, marginX + cardPadding, y + 5);
+      doc.setFont("helvetica", "normal");
+      y += 10;
+
+      // Patient details
+      doc.setFontSize(9);
+      const lines = [
+        `ID: ${p._id || p.id || "N/A"}`,
+        `Name: ${p.firstName || ""} ${p.lastName || ""}`,
+        `Age/Gender: ${p.age || "N/A"} / ${p.gender || "N/A"}`,
+        `Phone: ${p.phone || "N/A"}  |  Email: ${p.email || "N/A"}`,
+        `Address: ${p.address || "N/A"}`,
+        `Diagnosis: ${p.diagnosis || "N/A"} (Stage ${p.stage || "N/A"})`,
+        `Diagnosis Date: ${p.diagnosisDate ? formatDate(p.diagnosisDate) : "N/A"}`,
+        `Treatment Plan: ${p.treatmentPlan || "N/A"}`,
+        `Doctor: ${p.doctor || "N/A"}`,
+        `Next Appointment: ${p.nextAppointment ? formatDate(p.nextAppointment) : "N/A"}`,
+        `Status: ${p.status || "N/A"}`,
+        `Allergies: ${p.allergies || "N/A"}`,
+        `Medical History: ${p.medicalHistory || "N/A"}`,
+        `Insurance: ${p.insuranceProvider || "N/A"} (ID: ${p.insuranceId || "N/A"})`,
+        `Coverage: ${p.coverage || "N/A"} | Valid Until: ${p.validUntil ? formatDate(p.validUntil) : "N/A"}`
+      ];
+
+      const startContentY = y;
+      lines.forEach(line => {
+        doc.text(line, marginX + cardPadding, y);
+        y += lineHeight;
+      });
+
+      const blockHeight = y - startY + 4;
+
+      // Background box
+      doc.setDrawColor(41, 128, 185);
+      doc.setFillColor(245, 245, 245);
+      doc.rect(marginX, startY, cardWidth, blockHeight, "FD");
+
+      // Reprint text above background
+      let y2 = startContentY;
+      lines.forEach(line => {
+        doc.text(line, marginX + cardPadding, y2);
+        y2 += lineHeight;
+      });
+
+      y += 8;
+
+      // Page break
+      if (y > 260) {
+        doc.addPage();
+        y = 45;
+        drawHeader(doc.internal.getCurrentPageInfo().pageNumber, 0); // redraw header
+      }
+    });
+
+    // Add footer page numbers
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      drawFooter(i, pageCount);
+    }
+
+    // Save PDF
+    doc.save(`patients_report_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+}
 
 
 // Format date for display
