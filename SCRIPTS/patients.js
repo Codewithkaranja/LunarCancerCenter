@@ -839,7 +839,8 @@ function exportCSV() {
 
 
 // Export to PDF
-function exportPDF() {
+// Export to PDF
+async function exportPDF() {
   if (!checkPermission('export_data')) {
     alert('You do not have permission to export data.');
     return;
@@ -848,137 +849,110 @@ function exportPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const marginX = 14;
+  const lineHeight = 6;
 
-  // Placeholder logo (replace later with your real hospital logo)
-  const logoUrl = "https://upload.wikimedia.org/wikipedia/commons/6/6e/Pink_ribbon.svg";
+  // Placeholder logo (replace with your hospital logo later)
+  const logoUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Pink_ribbon.svg/1200px-Pink_ribbon.svg.png";
+;
 
-  // Function to draw header on every page
-  function drawHeader(pageNumber, totalPages) {
-    // Logo
-    doc.addImage(logoImg, "PNG", pageWidth / 2 - 10, 5, 20, 20);
+  // Convert logo to base64
+  async function loadLogo(url) {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  }
 
-    // Title
+  const logoData = await loadLogo(logoUrl);
+
+  // Draw header
+  function drawHeader() {
+    if (logoData) doc.addImage(logoData, "SVG", pageWidth / 2 - 10, 5, 20, 20);
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
     doc.text("Patient List Report", pageWidth / 2, 30, { align: "center" });
-
-    // Export Date
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(
-      `Export Date: ${new Date().toLocaleDateString()}`,
-      pageWidth / 2,
-      36,
-      { align: "center" }
-    );
+    doc.text(`Export Date: ${new Date().toLocaleDateString()}`, pageWidth / 2, 36, { align: "center" });
   }
 
-  // Function to draw footer with page numbers
+  // Draw footer
   function drawFooter(pageNumber, totalPages) {
     doc.setFontSize(8);
-    doc.text(
-      `Page ${pageNumber} of ${totalPages}`,
-      pageWidth - 20,
-      290,
-      { align: "right" }
-    );
+    doc.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - 20, 290, { align: "right" });
   }
 
-  // Load the logo image
-  const logoImg = new Image();
-  logoImg.crossOrigin = "Anonymous";
-  logoImg.src = logoUrl;
+  let y = 45;
+  drawHeader();
 
-  logoImg.onload = function () {
-    let y = 45;
-    const marginX = 14;
-    const lineHeight = 6;
+  filteredPatients.forEach((p, i) => {
+    const startY = y;
+    const cardWidth = pageWidth - marginX * 2;
+    const cardPadding = 5;
 
-    // Draw header for page 1
-    drawHeader(1, 1);
+    // Prepare patient lines
+    const lines = [
+      `ID: ${p._id || p.id || "N/A"}`,
+      `Name: ${p.firstName || ""} ${p.lastName || ""}`,
+      `Age/Gender: ${p.age || "N/A"} / ${p.gender || "N/A"}`,
+      `Phone: ${p.phone || "N/A"}  |  Email: ${p.email || "N/A"}`,
+      `Address: ${p.address || "N/A"}`,
+      `Diagnosis: ${p.diagnosis || "N/A"} (Stage ${p.stage || "N/A"})`,
+      `Diagnosis Date: ${p.diagnosisDate ? formatDate(p.diagnosisDate) : "N/A"}`,
+      `Treatment Plan: ${p.treatmentPlan || "N/A"}`,
+      `Doctor: ${p.doctor || "N/A"}`,
+      `Next Appointment: ${p.nextAppointment ? formatDate(p.nextAppointment) : "N/A"}`,
+      `Status: ${p.status || "N/A"}`,
+      `Allergies: ${p.allergies || "N/A"}`,
+      `Medical History: ${p.medicalHistory || "N/A"}`,
+      `Insurance: ${p.insuranceProvider || "N/A"} (ID: ${p.insuranceId || "N/A"})`,
+      `Coverage: ${p.coverage || "N/A"} | Valid Until: ${p.validUntil ? formatDate(p.validUntil) : "N/A"}`
+    ];
 
-    filteredPatients.forEach((p, i) => {
-      const startY = y;
+    // Draw background box
+    const blockHeight = lines.length * lineHeight + 10;
+    doc.setDrawColor(41, 128, 185);
+    doc.setFillColor(245, 245, 245);
+    doc.rect(marginX, startY, cardWidth, blockHeight, "FD");
 
-      const cardWidth = pageWidth - marginX * 2;
-      const cardPadding = 5;
-
-      // Title
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text(`Patient #${i + 1}`, marginX + cardPadding, y + 5);
-      doc.setFont("helvetica", "normal");
-      y += 10;
-
-      // Patient details
-      doc.setFontSize(9);
-      const lines = [
-        `ID: ${p._id || p.id || "N/A"}`,
-        `Name: ${p.firstName || ""} ${p.lastName || ""}`,
-        `Age/Gender: ${p.age || "N/A"} / ${p.gender || "N/A"}`,
-        `Phone: ${p.phone || "N/A"}  |  Email: ${p.email || "N/A"}`,
-        `Address: ${p.address || "N/A"}`,
-        `Diagnosis: ${p.diagnosis || "N/A"} (Stage ${p.stage || "N/A"})`,
-        `Diagnosis Date: ${p.diagnosisDate ? formatDate(p.diagnosisDate) : "N/A"}`,
-        `Treatment Plan: ${p.treatmentPlan || "N/A"}`,
-        `Doctor: ${p.doctor || "N/A"}`,
-        `Next Appointment: ${p.nextAppointment ? formatDate(p.nextAppointment) : "N/A"}`,
-        `Status: ${p.status || "N/A"}`,
-        `Allergies: ${p.allergies || "N/A"}`,
-        `Medical History: ${p.medicalHistory || "N/A"}`,
-        `Insurance: ${p.insuranceProvider || "N/A"} (ID: ${p.insuranceId || "N/A"})`,
-        `Coverage: ${p.coverage || "N/A"} | Valid Until: ${p.validUntil ? formatDate(p.validUntil) : "N/A"}`
-      ];
-
-      const startContentY = y;
-      lines.forEach(line => {
-        doc.text(line, marginX + cardPadding, y);
-        y += lineHeight;
-      });
-
-      const blockHeight = y - startY + 4;
-
-      // Background box
-      doc.setDrawColor(41, 128, 185);
-      doc.setFillColor(245, 245, 245);
-      doc.rect(marginX, startY, cardWidth, blockHeight, "FD");
-
-      // Reprint text above background
-      let y2 = startContentY;
-      lines.forEach(line => {
-        doc.text(line, marginX + cardPadding, y2);
-        y2 += lineHeight;
-      });
-
-      y += 8;
-
-      // Page break
-      if (y > 260) {
-        doc.addPage();
-        y = 45;
-        drawHeader(doc.internal.getCurrentPageInfo().pageNumber, 0); // redraw header
-      }
+    // Draw text above background
+    let yText = startY + 5;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    lines.forEach(line => {
+      doc.text(line, marginX + cardPadding, yText);
+      yText += lineHeight;
     });
 
-    // Add footer page numbers
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      drawFooter(i, pageCount);
-    }
+    y += blockHeight + 8;
 
-    // Save PDF
-    doc.save(`patients_report_${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
+    // Page break
+    if (y > 260) {
+      doc.addPage();
+      y = 45;
+      drawHeader();
+    }
+  });
+
+  // Footer page numbers
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawFooter(i, totalPages);
+  }
+
+  doc.save(`patients_report_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-
-// Format date for display
+// Format date
 function formatDate(dateString) {
   const date = new Date(dateString);
   if (isNaN(date)) return 'N/A';
-  const options = { day: '2-digit', month: 'short', year: 'numeric' };
-  return date.toLocaleDateString('en-US', options);
+  return date.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 
