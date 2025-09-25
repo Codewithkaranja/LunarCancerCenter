@@ -853,7 +853,7 @@ async function exportPDF() {
   const lineHeight = 6;
 
   // Placeholder logo (replace with your hospital logo later)
-  const logoUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Pink_ribbon.svg/1200px-Pink_ribbon.svg.png";
+ // const logoUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Pink_ribbon.svg/1200px-Pink_ribbon.svg.png";
 ;
 
   // Convert logo to base64

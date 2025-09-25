@@ -601,40 +601,58 @@
       }
 
       /* Appointment Modal */
+      /* ========================== */
+      /* Modal Base */
+      /* ========================== */
       .modal {
         display: none;
         position: fixed;
-        top: 0;
+        z-index: 999;
         left: 0;
+        top: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
+        overflow-y: auto;
+        background-color: rgba(0, 0, 0, 0.5);
+        font-family: "Segoe UI", sans-serif;
       }
 
       .modal-content {
-        background: white;
-        border-radius: 8px;
+        background-color: #fff;
+        margin: 3% auto;
+        padding: 20px;
+        border-radius: 10px;
         width: 90%;
-        max-width: 800px;
-        max-height: 90vh;
-        overflow-y: auto;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        max-width: 900px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        animation: fadeIn 0.3s ease-out;
       }
 
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ========================== */
+      /* Modal Header */
+      /* ========================== */
       .modal-header {
-        padding: 20px;
-        border-bottom: 1px solid #eee;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        margin-bottom: 15px;
       }
 
-      .modal-title {
+      .modal-header h2 {
+        margin: 0;
         font-size: 1.5rem;
-        font-weight: 600;
+        color: #333;
       }
 
       .modal-close {
@@ -642,59 +660,166 @@
         border: none;
         font-size: 1.5rem;
         cursor: pointer;
-        color: var(--gray);
+        color: #888;
+        transition: color 0.2s;
       }
 
-      .modal-body {
-        padding: 20px;
+      .modal-close:hover {
+        color: #000;
       }
 
+      /* ========================== */
+      /* Tabs */
+      /* ========================== */
       .modal-tabs {
         display: flex;
-        border-bottom: 1px solid #eee;
-        margin-bottom: 20px;
+        border-bottom: 2px solid #eee;
+        margin-bottom: 15px;
       }
 
       .tab-btn {
-        padding: 10px 20px;
+        flex: 1;
         background: none;
         border: none;
+        padding: 10px 15px;
         cursor: pointer;
-        font-weight: 500;
-        color: var(--gray);
+        font-size: 1rem;
+        color: #555;
         border-bottom: 3px solid transparent;
+        transition: all 0.2s;
       }
 
       .tab-btn.active {
-        color: var(--secondary);
-        border-bottom-color: var(--secondary);
+        color: #007bff;
+        border-bottom: 3px solid #007bff;
       }
 
       .tab-content {
         display: none;
+        animation: fadeContent 0.3s ease-out;
       }
 
       .tab-content.active {
         display: block;
       }
 
+      @keyframes fadeContent {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      /* ========================== */
+      /* Form Grid */
+      /* ========================== */
       .form-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .form-group label {
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #333;
+      }
+
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        padding: 8px 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 0.95rem;
+        width: 100%;
+        box-sizing: border-box;
+        transition: border 0.2s;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        border-color: #007bff;
+        outline: none;
       }
 
       .form-full {
         grid-column: 1 / -1;
       }
 
+      /* ========================== */
+      /* Form Actions */
+      /* ========================== */
       .form-actions {
         display: flex;
         justify-content: flex-end;
-        gap: 10px;
         margin-top: 20px;
-        padding-top: 20px;
-        border-top: 1px solid #eee;
+        gap: 10px;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        transition: all 0.2s;
+      }
+
+      .btn-primary {
+        background-color: #007bff;
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        background-color: #0056b3;
+      }
+
+      .btn:hover {
+        opacity: 0.85;
+      }
+
+      /* ========================== */
+      /* Status Badge */
+      /* ========================== */
+      .status-badge {
+        padding: 3px 7px;
+        border-radius: 4px;
+        color: #fff;
+        font-size: 0.85rem;
+        text-transform: capitalize;
+      }
+
+      .status-scheduled {
+        background-color: #28a745;
+      }
+      .status-canceled {
+        background-color: #dc3545;
+      }
+      .status-completed {
+        background-color: #17a2b8;
+      }
+
+      /* ========================== */
+      /* Responsive Adjustments */
+      /* ========================== */
+      @media (max-width: 600px) {
+        .modal-content {
+          padding: 15px;
+        }
+
+        .tab-btn {
+          font-size: 0.85rem;
+          padding: 8px 10px;
+        }
       }
 
       /* Footer Styles */
