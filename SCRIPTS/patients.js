@@ -204,14 +204,23 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Initialize patient data
-function initializePatients() {
-  // In a real application, this would be an API call
-  allPatients = [...samplePatients];
-  filteredPatients = [...allPatients];
-  
-  renderPatients();
-  updatePagination();
+async function initializePatients() {
+  try {
+    const response = await fetch('/api/patients'); // Adjust URL to your backend endpoint
+    if (!response.ok) throw new Error('Failed to fetch patients');
+    const data = await response.json();
+
+    allPatients = data; // replace local sample data
+    filteredPatients = [...allPatients];
+    
+    renderPatients();
+    updatePagination();
+  } catch (error) {
+    console.error('Error fetching patients:', error);
+    alert('Failed to load patient data.');
+  }
 }
+
 
 // Set up event listeners
 function setupEventListeners() {
@@ -271,25 +280,33 @@ function applyRBAC() {
 }
 
 // Handle search functionality
-function handleSearch() {
+async function handleSearch() {
   const searchText = document.getElementById('search-name').value.toLowerCase();
   const diagnosisFilter = document.getElementById('filter-diagnosis').value;
   const statusFilter = document.getElementById('filter-status').value;
-  
-  filteredPatients = allPatients.filter(patient => {
-    const matchesSearch = searchText === '' || 
-      patient.id.toLowerCase().includes(searchText) ||
-      `${patient.firstName} ${patient.lastName}`.toLowerCase().includes(searchText);
-    
-    const matchesDiagnosis = diagnosisFilter === '' || patient.diagnosis.toLowerCase().includes(diagnosisFilter);
-    const matchesStatus = statusFilter === '' || patient.status === statusFilter;
-    
-    return matchesSearch && matchesDiagnosis && matchesStatus;
-  });
-  
-  currentPage = 1;
-  renderPatients();
-  updatePagination();
+
+  try {
+    const query = new URLSearchParams({
+      search: searchText,
+      diagnosis: diagnosisFilter,
+      status: statusFilter,
+      sortColumn: currentSort.column || '',
+      sortDirection: currentSort.direction || 'asc',
+      page: currentPage,
+      limit: patientsPerPage
+    });
+
+    const response = await fetch(`/api/patients?${query.toString()}`);
+    if (!response.ok) throw new Error('Failed to fetch filtered patients');
+    const data = await response.json();
+
+    filteredPatients = data.patients;
+    renderPatients();
+    updatePagination(data.totalCount); // update pagination with backend total
+  } catch (error) {
+    console.error(error);
+    alert('Failed to search patients.');
+  }
 }
 
 // Handle sorting
@@ -297,38 +314,46 @@ function handleSort(column) {
   const columnMap = {
     'Patient ID': 'id',
     'Name': 'lastName',
-    'Age/Gender': 'age',
+    'Age/Gender': 'ageGender', // NEW
     'Diagnosis': 'diagnosis',
     'Stage': 'stage',
     'Doctor': 'doctor',
     'Next Appointment': 'nextAppointment',
     'Status': 'status'
   };
-  
+
   const sortField = columnMap[column];
-  
+  if (!sortField) return;
+
   if (currentSort.column === sortField) {
     currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
   } else {
     currentSort.column = sortField;
     currentSort.direction = 'asc';
   }
-  
+
   filteredPatients.sort((a, b) => {
-    let valueA = a[sortField];
-    let valueB = b[sortField];
-    
-    // Special handling for name sorting
+    let valueA, valueB;
+
     if (sortField === 'lastName') {
       valueA = `${a.lastName} ${a.firstName}`;
       valueB = `${b.lastName} ${b.firstName}`;
+    } else if (sortField === 'ageGender') {
+      valueA = `${a.age}-${a.gender}`;
+      valueB = `${b.age}-${b.gender}`;
+    } else if (sortField === 'nextAppointment') {
+      valueA = new Date(a.nextAppointment);
+      valueB = new Date(b.nextAppointment);
+    } else {
+      valueA = a[sortField];
+      valueB = b[sortField];
     }
-    
+
     if (valueA < valueB) return currentSort.direction === 'asc' ? -1 : 1;
     if (valueA > valueB) return currentSort.direction === 'asc' ? 1 : -1;
     return 0;
   });
-  
+
   renderPatients();
 }
 
@@ -366,6 +391,10 @@ function handleSortDropdown(value) {
 }
 
 // Render patients table
+function getPatientId(patient) {
+  return patient.id || patient._id; // normalize frontend vs backend
+}
+
 function renderPatients() {
   const tbody = document.querySelector('.patients-table tbody');
   tbody.innerHTML = '';
@@ -381,8 +410,10 @@ function renderPatients() {
     const statusClass = `status-${patient.status}`;
     const statusText = patient.status.charAt(0).toUpperCase() + patient.status.slice(1);
     
+    const patientId = getPatientId(patient); // ✅ normalize id
+    
     row.innerHTML = `
-      <td>${patient.id}</td>
+      <td>${patientId}</td>
       <td>${patient.firstName} ${patient.lastName}</td>
       <td>${patient.age}/${patient.gender}</td>
       <td>${patient.diagnosis}</td>
@@ -392,19 +423,19 @@ function renderPatients() {
       <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       <td class="action-cell">
         ${checkPermission('view_patients') ? 
-          `<button class="action-btn btn-view" data-id="${patient.id}">
+          `<button class="action-btn btn-view" data-id="${patientId}">
             <i class="fas fa-eye"></i> View
           </button>` : ''}
         ${checkPermission('edit_patients') ? 
-          `<button class="action-btn btn-edit" data-id="${patient.id}">
+          `<button class="action-btn btn-edit" data-id="${patientId}">
             <i class="fas fa-edit"></i> Edit
           </button>` : ''}
         ${checkPermission('view_prescriptions') ? 
-          `<button class="action-btn btn-prescription" data-id="${patient.id}">
+          `<button class="action-btn btn-prescription" data-id="${patientId}">
             <i class="fas fa-prescription-bottle-alt"></i> Prescription
           </button>` : ''}
         ${checkPermission('view_billing') ? 
-          `<button class="action-btn btn-billing" data-id="${patient.id}">
+          `<button class="action-btn btn-billing" data-id="${patientId}">
             <i class="fas fa-file-invoice"></i> Billing
           </button>` : ''}
       </td>
@@ -441,31 +472,54 @@ function addActionButtonListeners() {
 }
 
 // Handle pagination
+// Handle pagination (backend-driven)
 function handlePagination(button) {
-  const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
-  
+  const totalPages = Math.ceil(totalCount / patientsPerPage); // optional for disabling buttons locally
+
   if (button.textContent.includes('Previous') && currentPage > 1) {
     currentPage--;
   } else if (button.textContent.includes('Next') && currentPage < totalPages) {
     currentPage++;
   } else if (!isNaN(button.textContent)) {
     currentPage = parseInt(button.textContent);
+  } else {
+    return;
   }
-  
-  renderPatients();
-  updatePagination();
+
+  // Fetch the page data from backend
+ // Fetch patients from backend with pagination
+
+}
+async function fetchPatients(page = 1, limit = 5) {
+  try {
+    const response = await fetch(`/api/patients?page=${page}&limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch patients');
+
+    const data = await response.json();
+
+    // Backend should return { patients: [...], totalCount: 100 }
+    allPatients = data.patients;
+    filteredPatients = [...allPatients]; // optional if you want to allow frontend search/filter
+
+    renderPatients();
+    updatePagination(data.totalCount);
+  } catch (error) {
+    console.error('Error fetching patients:', error);
+  }
 }
 
+
 // Update pagination controls
-function updatePagination() {
-  const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
+function updatePagination(totalCount) {
+  const totalPages = Math.ceil(totalCount / patientsPerPage);
   const paginationContainer = document.getElementById('pagination');
   const paginationInfo = document.getElementById('pagination-info');
   
   // Update pagination info
   const startIndex = (currentPage - 1) * patientsPerPage + 1;
   const endIndex = Math.min(startIndex + patientsPerPage - 1, filteredPatients.length);
-  paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${filteredPatients.length} patients`;
+  paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${totalCount} patients`;
+;
   
   // Generate pagination buttons
   let paginationHTML = '';
@@ -493,65 +547,88 @@ function updatePagination() {
 }
 
 // View patient details
+function getPatientId(patient) {
+  return patient.id || patient._id;
+}
+
 function viewPatient(patientId) {
-  const patient = allPatients.find(p => p.id === patientId);
+  const patient = allPatients.find(p => getPatientId(p) === patientId);
   if (!patient) return;
-  
-  // In a real application, this would open a detailed view modal or page
-  alert(`Viewing patient: ${patient.firstName} ${patient.lastName}\nID: ${patient.id}\nDiagnosis: ${patient.diagnosis}`);
+
+  // In a real app, replace with modal/view page
+  alert(
+    `Viewing patient: ${patient.firstName} ${patient.lastName}\n` +
+    `ID: ${getPatientId(patient)}\n` +
+    `Diagnosis: ${patient.diagnosis}`
+  );
 }
 
 // Edit patient
+function getPatientId(patient) {
+  return patient.id || patient._id;
+}
+
 function editPatient(patientId) {
-  const patient = allPatients.find(p => p.id === patientId);
+  const patient = allPatients.find(p => getPatientId(p) === patientId);
   if (!patient) return;
-  
-  // Fill the form with patient data
-  document.getElementById('first-name').value = patient.firstName;
-  document.getElementById('last-name').value = patient.lastName;
-  document.getElementById('dob').value = calculateDOB(patient.age);
-  document.getElementById('gender').value = patient.gender.toLowerCase();
-  document.getElementById('phone').value = patient.phone;
-  document.getElementById('email').value = patient.email;
-  document.getElementById('address').value = patient.address;
-  
-  document.getElementById('diagnosis').value = patient.diagnosis.toLowerCase().replace(' cancer', '').replace(' ', '');
-  document.getElementById('diagnosis-date').value = patient.diagnosisDate;
-  document.getElementById('stage').value = patient.stage.includes('Stage') ? patient.stage.toLowerCase().replace('stage ', '') : '';
-  document.getElementById('treatment-plan').value = patient.treatmentPlan;
-  document.getElementById('allergies').value = patient.allergies;
-  document.getElementById('medical-history').value = patient.medicalHistory;
-  
-  document.getElementById('insurance-provider').value = patient.insuranceProvider;
-  document.getElementById('insurance-id').value = patient.insuranceId;
-  document.getElementById('coverage').value = patient.coverage;
-  document.getElementById('valid-until').value = patient.validUntil;
-  
-  // Change modal title and set data attribute for editing
-  document.querySelector('.modal-title').textContent = 'Edit Patient';
-  document.querySelector('.modal-content').dataset.patientId = patientId;
-  
+
+  // Example: prefill modal fields with patient data
+  document.getElementById("first-name").value = patient.firstName || "";
+  document.getElementById("last-name").value = patient.lastName || "";
+  document.getElementById("dob").value = patient.dob ? patient.dob.split("T")[0] : "";
+  document.getElementById("gender").value = patient.gender || "";
+  document.getElementById("phone").value = patient.phone || "";
+  document.getElementById("email").value = patient.email || "";
+  document.getElementById("address").value = patient.address || "";
+  document.getElementById("diagnosis").value = patient.diagnosis || "";
+  document.getElementById("diagnosis-date").value = patient.diagnosisDate ? patient.diagnosisDate.split("T")[0] : "";
+  document.getElementById("stage").value = patient.stage || "";
+  document.getElementById("treatment-plan").value = patient.treatmentPlan || "";
+  document.getElementById("allergies").value = patient.allergies || "";
+  document.getElementById("medical-history").value = patient.medicalHistory || "";
+  document.getElementById("insurance-provider").value = patient.insuranceProvider || "";
+  document.getElementById("insurance-id").value = patient.insuranceId || "";
+  document.getElementById("coverage").value = patient.coverage || "";
+  document.getElementById("valid-until").value = patient.validUntil ? patient.validUntil.split("T")[0] : "";
+  document.getElementById("doctor").value = patient.doctor || "";
+  document.getElementById("status").value = patient.status || "";
+  document.getElementById("next-appointment").value = patient.nextAppointment ? patient.nextAppointment.split("T")[0] : "";
+
+  // Track which patient is being edited
+  currentEditId = getPatientId(patient);
+
   openModal();
 }
 
 // Calculate date of birth from age
+// Calculate date of birth from age
 function calculateDOB(age) {
   const today = new Date();
   const birthYear = today.getFullYear() - age;
-  return `${birthYear}-01-01`; // Approximate DOB
+  const birthMonth = today.getMonth(); // Keep same month as today
+  const birthDay = today.getDate();    // Keep same day as today
+  const dob = new Date(birthYear, birthMonth, birthDay);
+  return dob.toISOString().split('T')[0]; // Format YYYY-MM-DD
+}
+
+
+// Save patient (add or edit)
+// Helper to normalize id/_id
+function normalizeId(patient) {
+  return patient.id || patient._id;
 }
 
 // Save patient (add or edit)
-function savePatient() {
-  // Get form data
-  const patientId = document.querySelector('.modal-content').dataset.patientId;
+async function savePatient() {
+  const modal = document.querySelector('.modal-content');
+  const patientId = modal.dataset.patientId; // can be id or _id
   const isEditing = !!patientId;
-  
+
   const patientData = {
     firstName: document.getElementById('first-name').value,
     lastName: document.getElementById('last-name').value,
     age: calculateAge(document.getElementById('dob').value),
-    gender: document.getElementById('gender').value.toUpperCase(),
+    gender: document.getElementById('gender').value, // keep raw, backend already enforces enum
     phone: document.getElementById('phone').value,
     email: document.getElementById('email').value,
     address: document.getElementById('address').value,
@@ -566,30 +643,31 @@ function savePatient() {
     coverage: document.getElementById('coverage').value,
     validUntil: document.getElementById('valid-until').value,
     status: 'active',
-    doctor: 'Dr. Achieng' // Default doctor, in real app this might come from user session
+    doctor: document.getElementById('doctor').value || null, // use doctor dropdown instead of hardcode
   };
-  
-  // Generate ID for new patients
-  if (!isEditing) {
-    patientData.id = generatePatientId();
-    allPatients.push(patientData);
-  } else {
-    // Update existing patient
-    const index = allPatients.findIndex(p => p.id === patientId);
-    if (index !== -1) {
-      patientData.id = patientId;
-      allPatients[index] = patientData;
-    }
+
+  try {
+    const url = isEditing ? `/api/patients/${patientId}` : '/api/patients';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patientData),
+    });
+
+    if (!response.ok) throw new Error('Failed to save patient');
+
+    await initializePatients(); // reload updated data
+    closeModal();
+    resetForm();
+  } catch (error) {
+    console.error(error);
+    alert('Error saving patient.');
   }
-  
-  // Reset filtered patients and update display
-  filteredPatients = [...allPatients];
-  renderPatients();
-  updatePagination();
-  
-  closeModal();
-  resetForm();
 }
+
+
 
 // Calculate age from date of birth
 function calculateAge(dob) {
@@ -606,8 +684,15 @@ function calculateAge(dob) {
 }
 
 // Generate a new patient ID
+// Generate a new patient ID
 function generatePatientId() {
-  const maxId = Math.max(...allPatients.map(p => parseInt(p.id.substring(1))));
+  // Find numeric parts of existing IDs
+  const numericIds = allPatients
+    .map(p => p.id.match(/\d+/))
+    .filter(Boolean)
+    .map(match => parseInt(match[0], 10));
+
+  const maxId = numericIds.length ? Math.max(...numericIds) : 12344;
   return `P${maxId + 1}`;
 }
 
@@ -623,42 +708,64 @@ function handleBilling(patientId) {
   window.location.href = `billing.html?patientId=${patientId}`;
 }
 
-// Export to CSV
 function exportCSV() {
   if (!checkPermission('export_data')) {
     alert('You do not have permission to export data.');
     return;
   }
-  
-  const headers = ['ID', 'Name', 'Age', 'Gender', 'Diagnosis', 'Stage', 'Doctor', 'Next Appointment', 'Status'];
+
+  // Define all headers
+  const headers = [
+    'ID', 'First Name', 'Last Name', 'Age', 'Gender', 'Diagnosis', 'Stage', 
+    'Doctor', 'Next Appointment', 'Status', 'Phone', 'Email', 'Address',
+    'Diagnosis Date', 'Treatment Plan', 'Allergies', 'Medical History',
+    'Insurance Provider', 'Insurance ID', 'Coverage', 'Valid Until'
+  ];
+
+  // Map filteredPatients to CSV rows
   const csvData = filteredPatients.map(patient => [
     patient.id,
-    `${patient.firstName} ${patient.lastName}`,
+    patient.firstName,
+    patient.lastName,
     patient.age,
     patient.gender,
     patient.diagnosis,
     patient.stage,
     patient.doctor,
     formatDate(patient.nextAppointment),
-    patient.status
+    patient.status,
+    patient.phone,
+    patient.email,
+    patient.address,
+    patient.diagnosisDate,
+    patient.treatmentPlan,
+    patient.allergies,
+    patient.medicalHistory,
+    patient.insuranceProvider,
+    patient.insuranceId,
+    patient.coverage,
+    patient.validUntil
   ]);
-  
+
+  // Convert to CSV string
   const csvContent = [headers, ...csvData].map(row => 
     row.map(field => `"${field}"`).join(',')
   ).join('\n');
-  
+
+  // Create download link
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
-  
+
   link.setAttribute('href', url);
-  link.setAttribute('download', `patients_export_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.setAttribute('download', `patients_export_${new Date().toISOString().slice(0,10)}.csv`);
   link.style.visibility = 'hidden';
-  
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
+
 
 // Export to PDF
 function exportPDF() {
@@ -666,34 +773,95 @@ function exportPDF() {
     alert('You do not have permission to export data.');
     return;
   }
-  
-  // In a real application, you would use a library like jsPDF
-  alert('PDF export functionality would typically use a library like jsPDF. This is a placeholder for the export feature.');
-  
-  // Example of what the implementation might look like:
-  /*
+
+  if (typeof jsPDF === 'undefined') {
+    alert('jsPDF library is not loaded. Please include jsPDF in your project.');
+    return;
+  }
+
   const doc = new jsPDF();
-  doc.text('Patient List', 20, 20);
-  
-  let y = 30;
-  filteredPatients.forEach(patient => {
-    doc.text(`${patient.id} - ${patient.firstName} ${patient.lastName}`, 20, y);
-    y += 10;
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
-    }
-  });
-  
-  doc.save(`patients_export_${new Date().toISOString().slice(0, 10)}.pdf`);
-  */
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header
+  doc.setFontSize(16);
+  doc.text('Patient List Report', pageWidth / 2, 15, { align: 'center' });
+  doc.setFontSize(10);
+  doc.text(`Export Date: ${new Date().toLocaleDateString()}`, pageWidth / 2, 22, { align: 'center' });
+
+  const headers = [
+    'ID', 'First Name', 'Last Name', 'Age', 'Gender', 'Diagnosis', 'Stage', 
+    'Doctor', 'Next Appointment', 'Status', 'Phone', 'Email', 'Address',
+    'Diagnosis Date', 'Treatment Plan', 'Allergies', 'Medical History',
+    'Insurance Provider', 'Insurance ID', 'Coverage', 'Valid Until'
+  ];
+
+  const rows = filteredPatients.map(p => [
+    p.id,
+    p.firstName,
+    p.lastName,
+    p.age,
+    p.gender,
+    p.diagnosis,
+    p.stage,
+    p.doctor,
+    formatDate(p.nextAppointment),
+    p.status,
+    p.phone,
+    p.email,
+    p.address,
+    p.diagnosisDate,
+    p.treatmentPlan,
+    p.allergies,
+    p.medicalHistory,
+    p.insuranceProvider,
+    p.insuranceId,
+    p.coverage,
+    p.validUntil
+  ]);
+
+  if (doc.autoTable) {
+    doc.autoTable({
+      head: [headers],
+      body: rows,
+      startY: 30,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      alternateRowStyles: { fillColor: [240, 240, 240] },
+      margin: { top: 30 },
+   didDrawPage: function (data) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFontSize(8);
+  doc.text(`Page ${doc.internal.getCurrentPageInfo().pageNumber}`, pageWidth - 20, 290, { align: 'right' });
 }
+
+    });
+  } else {
+    // Fallback: simple text table
+    let y = 30;
+    rows.forEach(row => {
+      y += 8;
+      if (y > 280) {
+        doc.addPage();
+        y = 30;
+      }
+      doc.text(row.join(' | '), 14, y);
+    });
+  }
+
+  doc.save(`patients_report_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+
 
 // Format date for display
 function formatDate(dateString) {
+  const date = new Date(dateString);
+  if (isNaN(date)) return 'N/A';
   const options = { day: '2-digit', month: 'short', year: 'numeric' };
-  return new Date(dateString).toLocaleDateString('en-US', options);
+  return date.toLocaleDateString('en-US', options);
 }
+
 
 // Modal functions
 function openModal() {

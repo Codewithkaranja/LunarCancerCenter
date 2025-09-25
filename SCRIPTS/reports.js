@@ -26,164 +26,39 @@
       // Current user role (this would typically come from your authentication system)
       let currentUserRole = "admin"; // Default to admin
 
-      // Sample data for reports
-      let reportsData = {
-        patient: [
-          {
-            id: 1,
-            name: "Monthly Patient Registrations",
-            dateRange: "1 Nov - 30 Nov 2025",
-            author: "Admin User",
-            type: "Patient Demographics",
-            generatedAt: "2025-11-30",
-          },
-          {
-            id: 2,
-            name: "Cancer Diagnosis Trends",
-            dateRange: "1 Oct - 30 Nov 2025",
-            author: "Dr. Achieng",
-            type: "Medical Analysis",
-            generatedAt: "2025-11-28",
-          },
-          {
-            id: 3,
-            name: "Treatment Outcomes Report",
-            dateRange: "1 Sep - 30 Nov 2025",
-            author: "Admin User",
-            type: "Patient Progress",
-            generatedAt: "2025-11-25",
-          },
-          {
-            id: 4,
-            name: "Patient Satisfaction Survey",
-            dateRange: "1 Nov - 30 Nov 2025",
-            author: "Nurse Jane",
-            type: "Feedback Analysis",
-            generatedAt: "2025-11-20",
-          },
-          {
-            id: 5,
-            name: "Monthly Billing Summary",
-            dateRange: "1 Nov - 30 Nov 2025",
-            author: "Cashier Mary",
-            type: "Financial Report",
-            generatedAt: "2025-11-15",
-          },
-          {
-            id: 6,
-            name: "Patient Readmission Rates",
-            dateRange: "1 Jan - 30 Nov 2025",
-            author: "Admin User",
-            type: "Quality Metrics",
-            generatedAt: "2025-11-10",
-          },
-          {
-            id: 7,
-            name: "Oncology Patient Census",
-            dateRange: "1 Nov - 30 Nov 2025",
-            author: "Dr. Kamau",
-            type: "Census Report",
-            generatedAt: "2025-11-05",
-          },
-        ],
-        staff: [
-          {
-            id: 1,
-            name: "Staff Performance Review",
-            dateRange: "1 Oct - 30 Nov 2025",
-            author: "HR Manager",
-            type: "Performance",
-            generatedAt: "2025-11-29",
-          },
-          {
-            id: 2,
-            name: "Staff Attendance Report",
-            dateRange: "1 Nov - 30 Nov 2025",
-            author: "Admin User",
-            type: "Attendance",
-            generatedAt: "2025-11-27",
-          },
-        ],
-        appointment: [
-          {
-            id: 1,
-            name: "Appointment No-Shows",
-            dateRange: "1 Nov - 30 Nov 2025",
-            author: "Admin User",
-            type: "Attendance",
-            generatedAt: "2025-11-26",
-          },
-          {
-            id: 2,
-            name: "Clinic Utilization Report",
-            dateRange: "1 Oct - 30 Nov 2025",
-            author: "Dr. Achieng",
-            type: "Utilization",
-            generatedAt: "2025-11-22",
-          },
-        ],
-        inventory: [
-          {
-            id: 1,
-            name: "Medication Stock Levels",
-            dateRange: "30 Nov 2025",
-            author: "Pharmacist John",
-            type: "Inventory",
-            generatedAt: "2025-11-30",
-          },
-          {
-            id: 2,
-            name: "Medical Supplies Usage",
-            dateRange: "1 Oct - 30 Nov 2025",
-            author: "Inventory Manager",
-            type: "Usage Report",
-            generatedAt: "2025-11-24",
-          },
-        ],
-        billing: [
-          {
-            id: 1,
-            name: "Revenue by Department",
-            dateRange: "1 Nov - 30 Nov 2025",
-            author: "Cashier Mary",
-            type: "Financial Report",
-            generatedAt: "2025-11-29",
-          },
-          {
-            id: 2,
-            name: "Insurance Claims Status",
-            dateRange: "1 Oct - 30 Nov 2025",
-            author: "Billing Admin",
-            type: "Claims Report",
-            generatedAt: "2025-11-21",
-          },
-        ],
-        system: [
-          {
-            id: 1,
-            name: "System Access Logs",
-            dateRange: "1 Nov - 30 Nov 2025",
-            author: "Admin User",
-            type: "Security",
-            generatedAt: "2025-11-30",
-          },
-          {
-            id: 2,
-            name: "Audit Trail Report",
-            dateRange: "1 Oct - 30 Nov 2025",
-            author: "Admin User",
-            type: "Audit",
-            generatedAt: "2025-11-23",
-          },
-        ],
-      };
+     // Fetch reports from backend
+async function fetchReports(category, filters = {}) {
+  const params = new URLSearchParams({
+    category,
+    dateRange: filters.dateRange || '',
+    department: filters.department || '',
+    staffMember: filters.staffMember || '',
+    sortField: currentSort.field,
+    sortDirection: currentSort.direction,
+    page: currentPage,
+    limit: itemsPerPage
+  });
+
+  try {
+    const res = await fetch(`/api/reports?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}` // if using JWT auth
+      }
+    });
+    const data = await res.json();
+    return data.reports; // backend should return { reports: [], totalCount: number }
+  } catch (err) {
+    console.error('Error fetching reports:', err);
+    return [];
+  }
+}
 
       // Global variables
       let currentCategory = "patient";
       let currentPage = 1;
       const itemsPerPage = 5;
       let currentSort = { field: "generatedAt", direction: "desc" };
-      let filteredReports = [...reportsData.patient];
+      let filteredReports = [];
 
       // DOM elements
       const generateReportBtn = document.getElementById("generate-report-btn");
@@ -207,12 +82,17 @@
       const customDateRange = document.getElementById("custom-date-range");
 
       // Initialize the application
-      function init() {
-        renderReportsTable();
-        setupEventListeners();
-        setupCharts();
-        applyRolePermissions();
-      }
+     async function init() {
+  // Fetch reports for the initial category
+  filteredReports = await fetchReports(currentCategory);
+
+  // Render table and setup the rest of the app
+  renderReportsTable();
+  setupEventListeners();
+  setupCharts();
+  applyRolePermissions();
+}
+
 
       // Set up event listeners
       function setupEventListeners() {
@@ -387,7 +267,7 @@
       }
 
       // Switch category
-      function switchCategory(category) {
+      async function switchCategory(category) {
         currentCategory = category;
         currentPage = 1;
 
@@ -406,7 +286,8 @@
         } Reports`;
 
         // Update reports data
-        filteredReports = [...reportsData[category]];
+        filteredReports = await fetchReports(category);
+
 
         // Apply current sort
         sortReports();
@@ -563,19 +444,22 @@
       }
 
       // Apply filters
-      function applyFilters() {
-        const dateRange = document.getElementById("date-range").value;
-        const department = document.getElementById("department").value;
-        const staffMember = document.getElementById("staff-member").value;
+      async function applyFilters() {
+  const dateRange = document.getElementById("date-range").value;
+  const department = document.getElementById("department").value;
+  const staffMember = document.getElementById("staff-member").value;
 
-        // In a real app, this would filter the reports based on the selected filters
-        // For this demo, we'll just show a message
-        alert(`Filters applied: ${dateRange}, ${department}, ${staffMember}`);
+  filteredReports = await fetchReports(currentCategory, {
+    dateRange,
+    department,
+    staffMember,
+  });
 
-        // After applying filters, we would typically fetch filtered data from the backend
-        // For now, we'll just use the current data
-        renderReportsTable();
-      }
+  currentPage = 1;
+  sortReports();
+  renderReportsTable();
+}
+
 
       // Open generate report modal
       function openGenerateReportModal() {
@@ -595,48 +479,44 @@
       }
 
       // Generate report
-      function generateReport() {
-        const reportType = document.getElementById("report-type").value;
-        const reportName = document.getElementById("report-name").value;
-        const dateRange = document.getElementById("report-date-range").value;
-        const format = document.getElementById("report-format").value;
+      async function generateReport() {
+  const reportType = document.getElementById("report-type").value;
+  const reportName = document.getElementById("report-name").value;
+  const dateRange = document.getElementById("report-date-range").value;
+  const format = document.getElementById("report-format").value;
 
-        if (!reportType || !reportName) {
-          alert("Please fill in all required fields.");
-          return;
-        }
+  if (!reportType || !reportName) {
+    alert("Please fill in all required fields.");
+    return;
+  }
 
-        // In a real app, this would send a request to the backend to generate the report
-        // For this demo, we'll simulate the process
+  try {
+    const res = await fetch('/api/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        name: reportName,
+        type: reportType,
+        dateRange,
+        format
+      })
+    });
+    const newReport = await res.json();
 
-        // Simulate API call
-        setTimeout(() => {
-          // Add new report to the list
-          const newReport = {
-            id: Date.now(),
-            name: reportName,
-            dateRange: getDateRangeText(dateRange),
-            author: "Admin User",
-            type:
-              reportType.charAt(0).toUpperCase() +
-              reportType.slice(1) +
-              " Report",
-            generatedAt: new Date().toISOString().split("T")[0],
-          };
+    // Refresh the table after generating report
+    await switchCategory(reportType);
 
-          reportsData[reportType].unshift(newReport);
+    closeGenerateReportModal();
+    alert(`Report generated successfully in ${format.toUpperCase()} format!`);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to generate report.");
+  }
+}
 
-          // Switch to the appropriate category
-          switchCategory(reportType);
-
-          // Close modal
-          closeGenerateReportModal();
-
-          alert(
-            `Report generated successfully in ${format.toUpperCase()} format!`
-          );
-        }, 1500);
-      }
 
       // Get date range text for display
       function getDateRangeText(dateRangeValue) {
@@ -684,44 +564,43 @@
       }
 
       // Export data
-      function exportData() {
-        if (!userRoles[currentUserRole].reports.export) {
-          alert("You do not have permission to export data.");
-          return;
-        }
+      async function exportData() {
+  if (!userRoles[currentUserRole].reports.export) {
+    alert("You do not have permission to export data.");
+    return;
+  }
 
-        // In a real app, this would export the data in the selected format
-        // For this demo, we'll simulate the process
+  const dateRange = document.getElementById("date-range").value;
+  const department = document.getElementById("department").value;
 
-        // Get current filters
-        const dateRange = document.getElementById("date-range").value;
-        const department = document.getElementById("department").value;
+  try {
+    const params = new URLSearchParams({
+      category: currentCategory,
+      dateRange,
+      department
+    });
 
-        alert(
-          `Exporting ${currentCategory} data for ${dateRange}${
-            department ? ` in ${department}` : ""
-          }...`
-        );
-
-        // Simulate export process
-        setTimeout(() => {
-          // Create a dummy download link
-          const dataStr =
-            "data:text/json;charset=utf-8," +
-            encodeURIComponent(JSON.stringify(filteredReports));
-          const downloadAnchorNode = document.createElement("a");
-          downloadAnchorNode.setAttribute("href", dataStr);
-          downloadAnchorNode.setAttribute(
-            "download",
-            `${currentCategory}_reports_${new Date()
-              .toISOString()
-              .slice(0, 10)}.json`
-          );
-          document.body.appendChild(downloadAnchorNode);
-          downloadAnchorNode.click();
-          downloadAnchorNode.remove();
-        }, 1000);
+    const res = await fetch(`/api/reports/export?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
+    });
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${currentCategory}_reports_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to export data.");
+  }
+}
+
 
       // Download report
       function downloadReport(id) {
@@ -805,4 +684,6 @@
       }
 
       // Initialize the application when the DOM is loaded
-      document.addEventListener("DOMContentLoaded", init);
+      document.addEventListener("DOMContentLoaded", () => {
+  init();
+});

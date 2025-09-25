@@ -1,19 +1,44 @@
 // ==========================
-// appointments.js
+// appointments.js (Updated for populated Patient + Staff)
 // ==========================
 
-let appointments = [
-  { id: "A1001", patient: "John Doe", doctor: "Dr. Achieng", date: "2025-11-22", time: "10:00", department: "Oncology", status: "Scheduled", billing: "Unpaid" },
-  { id: "A1002", patient: "Mary Smith", doctor: "Dr. Kamau", date: "2025-11-22", time: "11:30", department: "Oncology", status: "In Progress", billing: "Paid" },
-  { id: "A1003", patient: "Robert Johnson", doctor: "Dr. Achieng", date: "2025-11-23", time: "09:00", department: "Radiotherapy", status: "Scheduled", billing: "Unpaid" },
-  { id: "A1004", patient: "Susan Wangari", doctor: "Dr. Nyong'o", date: "2025-11-23", time: "14:00", department: "Chemotherapy", status: "Completed", billing: "Paid" },
-  { id: "A1005", patient: "James Ochieng", doctor: "Dr. Kamau", date: "2025-11-24", time: "10:30", department: "Oncology", status: "Cancelled", billing: "Unpaid" },
-];
+let appointments = [];
 
 let currentPage = 1;
 const rowsPerPage = 5;
 let currentSort = { column: "date", order: "asc" };
 let editingId = null; // Track appointment being edited
+
+
+// ==========================
+// Fetch Appointments
+// ==========================
+async function fetchAppointments() {
+  try {
+    const res = await fetch("https://lunar-hmis-backend.onrender.com/api/appointments");
+    const data = await res.json();
+
+    // ✅ Map MongoDB populated fields
+    appointments = data.map(a => ({
+      id: a._id,
+      patientId: a.patient?._id || "",        // dropdown reference
+      patient: a.patient?.name || "Unknown",  // display name
+      doctorId: a.doctor?._id || "",
+      doctor: a.doctor?.name || "Unassigned",
+      date: a.date,
+      time: a.time,
+      department: a.department || a.doctor?.department || "",
+      status: a.status,
+      billing: a.billing || "Unpaid"
+    }));
+
+    renderTable();
+  } catch (err) {
+    console.error("Error fetching appointments:", err);
+    alert("Failed to load appointments. Please try again later.");
+  }
+}
+
 
 // ==========================
 // Render Table
@@ -73,6 +98,7 @@ function renderTable() {
   renderPagination(filtered.length);
 }
 
+
 // ==========================
 // Pagination
 // ==========================
@@ -107,6 +133,7 @@ function renderPagination(total) {
     `Showing ${Math.min((currentPage-1)*rowsPerPage+1,total)}-${Math.min(currentPage*rowsPerPage,total)} of ${total} appointments`;
 }
 
+
 // ==========================
 // Utilities
 // ==========================
@@ -116,6 +143,7 @@ function formatDateTime(date, time) {
          d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
 }
 
+
 // ==========================
 // Search & Filter
 // ==========================
@@ -123,6 +151,7 @@ document.querySelector(".search-btn").addEventListener("click", () => {
   currentPage = 1;
   renderTable();
 });
+
 
 // ==========================
 // Sorting
@@ -138,6 +167,7 @@ document.querySelector(".table-actions select").addEventListener("change", (e) =
   renderTable();
 });
 
+
 // ==========================
 // Modal
 // ==========================
@@ -148,8 +178,6 @@ function closeModal() {
   document.getElementById("appointmentModal").style.display = "none";
   clearModal();
 }
-
-// Clear modal fields
 function clearModal(){
   document.getElementById("patient").value = "";
   document.getElementById("doctor").value = "";
@@ -159,40 +187,48 @@ function clearModal(){
   editingId = null;
 }
 
+
 // ==========================
 // Create / Edit Appointment
 // ==========================
-document.querySelector("#appointmentModal .btn-primary").addEventListener("click", () => {
-  const patient = document.getElementById("patient").selectedOptions[0].text.split(" (")[0];
-  const doctor = document.getElementById("doctor").value;
+document.querySelector("#appointmentModal .btn-primary").addEventListener("click", async () => {
+  const patientId = document.getElementById("patient").value;
+  const doctorId = document.getElementById("doctor").value;
   const date = document.getElementById("appointment-date").value;
   const time = document.getElementById("appointment-time").value;
   const department = document.getElementById("department").value;
   const status = "Scheduled";
   const billing = "Unpaid";
 
-  if(!patient || !doctor || !date || !time || !department){
+  if (!patientId || !doctorId || !date || !time || !department) {
     alert("Please fill all required fields");
     return;
   }
 
-  if(editingId){ 
-    // Edit existing
-    const app = appointments.find(a => a.id === editingId);
-    app.patient = patient;
-    app.doctor = doctor;
-    app.date = date;
-    app.time = time;
-    app.department = department;
-  } else {
-    // Create new
-    const id = "A" + (1000 + appointments.length + 1);
-    appointments.push({id, patient, doctor, date, time, department, status, billing});
-  }
+  try {
+    if (editingId) {
+      // ✅ Update existing appointment
+      await fetch(`https://lunar-hmis-backend.onrender.com/api/appointments/${editingId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patient: patientId, doctor: doctorId, date, time, department })
+      });
+    } else {
+      // ✅ Create new appointment
+      await fetch("https://lunar-hmis-backend.onrender.com/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patient: patientId, doctor: doctorId, date, time, department, status, billing })
+      });
+    }
 
-  closeModal();
-  renderTable();
+    await fetchAppointments();
+    closeModal();
+  } catch (err) {
+    alert("Error saving appointment: " + err.message);
+  }
 });
+
 
 // ==========================
 // View / Edit / Cancel
@@ -204,22 +240,30 @@ function viewAppointment(id){
 
 function editAppointment(id){
   const app = appointments.find(a => a.id === id);
-  document.getElementById("patient").value = `patient${appointments.indexOf(app)+1}`;
-  document.getElementById("doctor").value = app.doctor;
-  document.getElementById("appointment-date").value = app.date;
+  document.getElementById("patient").value = app.patientId;
+  document.getElementById("doctor").value = app.doctorId;
+  document.getElementById("appointment-date").value = app.date.split("T")[0];
   document.getElementById("appointment-time").value = app.time;
   document.getElementById("department").value = app.department;
   editingId = id;
   openModal();
 }
 
-function cancelAppointment(id){
+async function cancelAppointment(id){
   if(confirm("Are you sure you want to cancel this appointment?")){
-    const app = appointments.find(a => a.id === id);
-    app.status = "Cancelled";
-    renderTable();
+    try {
+      await fetch(`https://lunar-hmis-backend.onrender.com/api/appointments/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Cancelled" })
+      });
+      await fetchAppointments();
+    } catch (err) {
+      alert("Error cancelling appointment: " + err.message);
+    }
   }
 }
+
 
 // ==========================
 // Export CSV
@@ -238,6 +282,7 @@ document.querySelector(".btn-success").addEventListener("click", () => {
   link.click();
   document.body.removeChild(link);
 });
+
 
 // ==========================
 // Print Schedule
@@ -261,7 +306,8 @@ document.querySelector(".btn-warning").addEventListener("click", () => {
   newWin.print();
 });
 
+
 // ==========================
 // Initial Render
 // ==========================
-renderTable();
+fetchAppointments();

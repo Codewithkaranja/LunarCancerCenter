@@ -362,10 +362,11 @@
         const medication = medications.find((m) => m.id == medicationId);
         if (medication) {
           prescriptionItems[index].medication = medication.name;
-          renderPrescriptionItems();
-          checkDrugInteractions();
-        }
-      }
+         const stockWarning = getStockWarning(medication.name);
+        document.querySelectorAll(".stock-warning")[index].innerHTML = stockWarning;
+         checkDrugInteractions();
+
+      }}
 
       // Update dosage
       function updateDosage(index, dosage) {
@@ -384,7 +385,7 @@
 
       // Update quantity
       function updateQuantity(index, quantity) {
-        prescriptionItems[index].quantity = quantity;
+        prescriptionItems[index].quantity = parseInt(quantity) || 1;
       }
 
       // Update instructions
@@ -395,9 +396,7 @@
       // Check for drug interactions
       function checkDrugInteractions() {
         // Simple interaction check - in a real app, this would be more sophisticated
-        const currentMeds = document.getElementById(
-          "patient-info-current-meds"
-        ).textContent;
+       const currentMeds = document.getElementById("patient-info-current-meds")?.textContent || "";
         const prescribedMeds = prescriptionItems.map((item) => item.medication);
 
         // Check if any prescribed meds might interact with current meds
@@ -445,61 +444,142 @@
         checkDrugInteractions();
       }
 
-      // Save prescription as draft
-      function saveDraft() {
-        if (!userRoles[currentUserRole].prescriptions.create) {
-          alert("You do not have permission to save prescriptions.");
-          return;
-        }
+   // Save prescription as draft
+async function saveDraft() {
+  if (!userRoles[currentUserRole].prescriptions.create) {
+    alert("You do not have permission to save prescriptions.");
+    return;
+  }
 
-        // Generate a new prescription ID
-        const newId = `RX${new Date()
-          .toISOString()
-          .slice(0, 10)
-          .replace(/-/g, "")}-${prescriptionHistory.length + 1}`;
+  const payload = {
+    patient: document.getElementById("patient-info-name").textContent,
+   medications: prescriptionItems.map(item => ({
+  medication: item.medication,
+  dosage: item.dosage,
+  frequency: item.frequency,
+  duration: item.duration,
+  quantity: item.quantity,
+  instructions: item.instructions
+}))
+,
+    status: "draft",
+    billStatus: "pending"
+  };
 
-        // Add to history
-        prescriptionHistory.unshift({
-          id: newId,
-          date: new Date().toISOString().slice(0, 10),
-          patient: document.getElementById("patient-info-name").textContent,
-          medications: prescriptionItems.map((item) => item.medication),
-          doctor: "Dr. Achieng",
-          status: "draft",
-          billStatus: "pending",
-        });
+  try {
+    const res = await fetch('/api/prescriptions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
 
-        renderPrescriptionHistory();
-        alert("Prescription saved as draft successfully!");
-      }
+    if (!res.ok) throw new Error("Failed to save draft");
+    const data = await res.json();
+    alert("Prescription saved as draft successfully!");
+    await fetchPrescriptionHistory();
+  } catch (err) {
+    console.error(err);
+    alert("Error saving prescription.");
+  }
+}
 
-      // Submit to pharmacy
-      function submitToPharmacy() {
-        if (!userRoles[currentUserRole].prescriptions.create) {
-          alert("You do not have permission to submit prescriptions.");
-          return;
-        }
+// Submit prescription to pharmacy
+// Global token (replace with your real token)
 
-        // Generate a new prescription ID
-        const newId = `RX${new Date()
-          .toISOString()
-          .slice(0, 10)
-          .replace(/-/g, "")}-${prescriptionHistory.length + 1}`;
 
-        // Add to history
-        prescriptionHistory.unshift({
-          id: newId,
-          date: new Date().toISOString().slice(0, 10),
-          patient: document.getElementById("patient-info-name").textContent,
-          medications: prescriptionItems.map((item) => item.medication),
-          doctor: "Dr. Achieng",
-          status: "submitted",
-          billStatus: "pending",
-        });
+// Submit prescription to pharmacy
+async function submitToPharmacy() {
+  if (!userRoles[currentUserRole].prescriptions.create) {
+    alert("You do not have permission to submit prescriptions.");
+    return;
+  }
 
-        renderPrescriptionHistory();
-        alert("Prescription submitted to pharmacy successfully!");
-      }
+  const patientName = document.getElementById("patient-info-name")?.textContent || "";
+  const medicationsList = prescriptionItems.map(item => ({
+  medication: item.medication,
+  dosage: item.dosage,
+  frequency: item.frequency,
+  duration: item.duration,
+  quantity: item.quantity,
+  instructions: item.instructions
+}));
+
+  if (!patientName || medicationsList.length === 0) {
+    alert("Please select a patient and add at least one medication.");
+    return;
+  }
+
+  const payload = {
+    patient: patientName,
+    medications: medicationsList,
+    status: "submitted",
+    billStatus: "pending"
+  };
+
+  try {
+    const res = await fetch('/api/prescriptions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error("Failed to submit prescription");
+    const data = await res.json();
+    alert("Prescription submitted to pharmacy successfully!");
+    
+    // Refresh history
+    await fetchPrescriptionHistory();
+  } catch (err) {
+    console.error(err);
+    alert("Error submitting prescription.");
+  }
+}
+
+// Reissue prescription
+async function reissuePrescription() {
+  if (!userRoles[currentUserRole].prescriptions.edit && !userRoles[currentUserRole].prescriptions.dispense) {
+  alert("You do not have permission to reissue prescriptions.");
+  return;
+}
+
+
+  const prescriptionIdElement = document.getElementById("prescription-id");
+  if (!prescriptionIdElement) {
+    alert("Prescription ID not found. Please open a prescription first.");
+    return;
+  }
+  const prescriptionId = prescriptionIdElement.textContent;
+
+  try {
+    const res = await fetch(`/api/prescriptions/${prescriptionId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ status: "submitted" })
+    });
+
+    if (!res.ok) throw new Error("Failed to reissue prescription");
+    const data = await res.json();
+    alert("Prescription reissued successfully!");
+    
+    // Close modal and refresh history
+    if (viewPrescriptionModal) viewPrescriptionModal.style.display = "none";
+    await fetchPrescriptionHistory();
+  } catch (err) {
+    console.error(err);
+    alert("Error reissuing prescription.");
+  }
+}
+
+
 
       // Send to billing
       function sendToBilling() {
@@ -549,65 +629,76 @@
       }
 
       // View prescription details
-      function viewPrescription(prescriptionId) {
-        const prescription = prescriptionHistory.find(
-          (p) => p.id === prescriptionId
-        );
-        if (prescription) {
-          const detailsContainer = document.getElementById(
-            "prescription-details"
-          );
+    // View prescription details from backend
+async function viewPrescription(prescriptionId) {
+  const detailsContainer = document.getElementById("prescription-details");
 
-          // Format date
-          const formattedDate = new Date(prescription.date).toLocaleDateString(
-            "en-GB",
-            {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            }
-          );
+  try {
+    const res = await fetch(`/api/prescriptions/${prescriptionId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
 
-          detailsContainer.innerHTML = `
-            <div class="form-group">
-              <label>Prescription ID</label>
-              <p>${prescription.id}</p>
-            </div>
-            <div class="form-group">
-              <label>Date</label>
-              <p>${formattedDate}</p>
-            </div>
-            <div class="form-group">
-              <label>Patient</label>
-              <p>${prescription.patient}</p>
-            </div>
-            <div class="form-group">
-              <label>Medications</label>
-              <ul>
-                ${prescription.medications
-                  .map((med) => `<li>${med}</li>`)
-                  .join("")}
-              </ul>
-            </div>
-            <div class="form-group">
-              <label>Prescribing Doctor</label>
-              <p>${prescription.doctor}</p>
-            </div>
-            <div class="form-group">
-              <label>Status</label>
-              <p>${prescription.status}</p>
-            </div>
-            <div class="form-group">
-              <label>Billing Status</label>
-              <p>${prescription.billStatus}</p>
-            </div>
-          `;
+    if (!res.ok) throw new Error("Failed to fetch prescription");
 
-          viewPrescriptionModal.style.display = "flex";
-        }
-      }
+    const prescription = await res.json();
 
-      // Reissue prescription
+    // Format date
+    const formattedDate = new Date(prescription.createdAt).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+
+    // Render prescription details
+    detailsContainer.innerHTML = `
+      <div class="form-group">
+        <label>Prescription ID</label>
+        <p id="prescription-id">${prescription._id}</p>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <p>${formattedDate}</p>
+      </div>
+      <div class="form-group">
+        <label>Patient</label>
+        <p>${prescription.patientId?.name || "N/A"}</p>
+      </div>
+      <div class="form-group">
+        <label>Medications</label>
+        <ul>
+          ${prescription.items.map(item => `
+            <li>
+              ${item.medication} - ${item.dosage}, ${item.frequency}, ${item.duration}, Qty: ${item.quantity}
+              <br><small>${item.instructions}</small>
+            </li>`).join("")}
+        </ul>
+      </div>
+      <div class="form-group">
+        <label>Prescribing Doctor</label>
+        <p>${prescription.doctorId?.name || "N/A"}</p>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <p>${prescription.status}</p>
+      </div>
+      <div class="form-group">
+        <label>Billing Status</label>
+        <p>${prescription.billStatus || "pending"}</p>
+      </div>
+    `;
+
+    // Show modal
+    const viewPrescriptionModal = document.getElementById("view-prescription-modal");
+    if (viewPrescriptionModal) viewPrescriptionModal.style.display = "flex";
+
+  } catch (err) {
+    console.error(err);
+    alert("Error fetching prescription details.");
+  }
+}
+
+
+      /* Reissue prescription
       function reissuePrescription() {
         if (!userRoles[currentUserRole].prescriptions.create) {
           alert("You do not have permission to reissue prescriptions.");
@@ -616,7 +707,7 @@
 
         alert("Prescription reissued successfully!");
         viewPrescriptionModal.style.display = "none";
-      }
+      }*/
 
       // Apply role permissions
       function applyRolePermissions() {

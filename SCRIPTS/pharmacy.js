@@ -474,81 +474,79 @@
       }
 
       // Save medicine
-      function saveMedicine() {
-        const id = document.getElementById("medicine-id").value;
-        const name = document.getElementById("medicine-name").value;
-        const batchNumber = document.getElementById("batch-number").value;
-        const expiryDate = document.getElementById("expiry-date").value;
-        const quantity = parseInt(document.getElementById("quantity").value);
-        const unitPrice = parseFloat(
-          document.getElementById("unit-price").value
-        );
-        const category = document.getElementById("category").value;
+     function saveMedicine() {
+  const id = document.getElementById("medicine-id").value;
+  const name = document.getElementById("medicine-name").value;
+  const batchNumber = document.getElementById("batch-number").value;
+  const expiryDate = document.getElementById("expiry-date").value;
+  const quantity = parseInt(document.getElementById("quantity").value);
+  const unitPrice = parseFloat(document.getElementById("unit-price").value);
+  const category = document.getElementById("category").value;
 
-        // Validate form
-        if (
-          !name ||
-          !batchNumber ||
-          !expiryDate ||
-          isNaN(quantity) ||
-          isNaN(unitPrice) ||
-          !category
-        ) {
-          alert("Please fill in all fields with valid values.");
-          return;
-        }
+  // Validate form
+  if (
+    !name ||
+    !batchNumber ||
+    !expiryDate ||
+    isNaN(quantity) ||
+    isNaN(unitPrice) ||
+    !category
+  ) {
+    alert("Please fill in all fields with valid values.");
+    return;
+  }
 
-        // Determine status based on quantity and expiry date
-        const today = new Date();
-        const expiry = new Date(expiryDate);
-        const daysUntilExpiry = Math.floor(
-          (expiry - today) / (1000 * 60 * 60 * 24)
-        );
+  // Determine status based on quantity and expiry date
+  const today = new Date();
+  const expiry = new Date(expiryDate);
+  const daysUntilExpiry = Math.floor(
+    (expiry - today) / (1000 * 60 * 60 * 24)
+  );
 
-        let status = "adequate";
-        if (quantity < 10) {
-          status = "low";
-        } else if (daysUntilExpiry < 30) {
-          status = "expired";
-        }
+  let status = "adequate";
+  if (quantity < 10) {
+    status = "low";
+  } else if (daysUntilExpiry < 30) {
+    status = "expired";
+  }
 
-        if (id) {
-          // Update existing medicine
-          const index = medicines.findIndex((m) => m.id == id);
-          if (index !== -1) {
-            medicines[index] = {
-              ...medicines[index],
-              name,
-              batchNumber,
-              expiryDate,
-              quantity,
-              unitPrice,
-              category,
-              status,
-            };
-          }
-        } else {
-          // Add new medicine
-          const newId =
-            medicines.length > 0
-              ? Math.max(...medicines.map((m) => m.id)) + 1
-              : 1;
-          medicines.push({
-            id: newId,
-            name,
-            batchNumber,
-            expiryDate,
-            quantity,
-            unitPrice,
-            category,
-            status,
-          });
-        }
+  if (id) {
+    // Update existing medicine
+    const index = medicines.findIndex((m) => m.id == id);
+    if (index !== -1) {
+      medicines[index] = {
+        ...medicines[index],
+        name,
+        batchNumber,
+        expiryDate,
+        quantity,
+        unitPrice,
+        category,
+        status,
+      };
+    }
+  } else {
+    // Add new medicine
+    const newId =
+      medicines.length > 0
+        ? Math.max(...medicines.map((m) => m.id)) + 1
+        : 1;
+    medicines.push({
+      id: newId,
+      name,
+      batchNumber,
+      expiryDate,
+      quantity,
+      unitPrice,
+      category,
+      status,
+    });
+  }
 
-        closeAllModals();
-        applyFilters(); // Reapply filters and refresh table
-        updateDashboardCounts();
-      }
+  closeAllModals();
+  applyFilters(); // Reapply filters and refresh table
+  updateDashboardCounts();
+}
 
       // Delete medicine
       function deleteMedicine(id) {

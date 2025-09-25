@@ -8,6 +8,9 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
     <style>
       :root {
         --primary: #2c3e50;
@@ -1251,6 +1254,28 @@
               </div>
             </div>
           </div>
+          <div class="form-group">
+  <label for="doctor">Assigned Doctor</label>
+  <select id="doctor">
+    <option value="">Select Doctor</option>
+    <!-- Populated dynamically from Staff list -->
+  </select>
+</div>
+
+<div class="form-group">
+  <label for="status">Patient Status</label>
+  <select id="status">
+    <option value="active">Active</option>
+    <option value="inactive">Inactive</option>
+    <option value="pending">Pending</option>
+  </select>
+</div>
+
+<div class="form-group">
+  <label for="next-appointment">Next Appointment</label>
+  <input type="date" id="next-appointment" />
+</div>
+
 
           <div class="form-actions">
             <button class="btn" onclick="closeModal()">Cancel</button>

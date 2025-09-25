@@ -1,8 +1,12 @@
 // ===========================
-// billing-upgraded.js
+// billing-upgraded.js (Connected to Backend)
 // ===========================
 
-document.addEventListener("DOMContentLoaded", function () {
+const API_URL = "https://lunar-hmis-backend.onrender.com/api/billing";
+let invoices = [];
+let currentInvoice = null;
+
+document.addEventListener("DOMContentLoaded", async function () {
   // Get user role from localStorage (set during login)
   const userRole = localStorage.getItem("userRole") || "cashier";
   const userName = localStorage.getItem("userName") || "Cashier Mary";
@@ -12,17 +16,22 @@ document.addEventListener("DOMContentLoaded", function () {
   document.querySelector(".user-details p").textContent =
     userRole.charAt(0).toUpperCase() + userRole.slice(1) + " / Finance Staff";
 
+  // Load invoices from backend
+  await fetchInvoices();
+
   // Payment action buttons
   document.querySelectorAll(".action-card").forEach((card) => {
-    card.addEventListener("click", () => {
+    card.addEventListener("click", async () => {
       const action = card.querySelector("h3").textContent.toLowerCase();
       switch (action) {
         case "mark as paid":
           currentInvoice.status = "paid";
+          await updateInvoice(currentInvoice._id, { status: "paid" });
           renderInvoice();
           break;
         case "mark as unpaid":
           currentInvoice.status = "unpaid";
+          await updateInvoice(currentInvoice._id, { status: "unpaid" });
           renderInvoice();
           break;
         case "add service":
@@ -52,64 +61,92 @@ document.addEventListener("DOMContentLoaded", function () {
   document.querySelector(".search-btn")?.addEventListener("click", () => {
     const idSearch = document.getElementById("patient-id").value.toLowerCase();
     const nameSearch = document.getElementById("patient-name").value.toLowerCase();
-    if (
-      currentInvoice.patientId.toLowerCase().includes(idSearch) &&
-      currentInvoice.patientName.toLowerCase().includes(nameSearch)
-    ) {
+    const found = invoices.find(inv =>
+      inv.patientId.toLowerCase().includes(idSearch) &&
+      inv.patientName.toLowerCase().includes(nameSearch)
+    );
+    if (found) {
+      currentInvoice = found;
+      renderInvoice();
       alert("Patient found: " + currentInvoice.patientName);
-    } else alert("No matching patient found");
+    } else {
+      alert("No matching patient found");
+    }
   });
 
   // New Invoice
-  document.querySelector(".btn-primary")?.addEventListener("click", () => {
+  document.querySelector(".btn-primary")?.addEventListener("click", async () => {
     const patientName = prompt("Enter Patient Name:");
     const patientId = prompt("Enter Patient ID:");
     if (!patientName || !patientId) return alert("Patient info required!");
 
     const newInvoice = {
-      id: `INV-${Math.floor(Math.random() * 10000)}`,
       patientName,
       patientId,
-      date: new Date().toLocaleDateString(),
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+      date: new Date(),
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       status: "unpaid",
       discount: 0,
       services: []
     };
-    invoices.push(newInvoice);
-    currentInvoice = newInvoice;
+
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newInvoice)
+    });
+    const saved = await res.json();
+    invoices.push(saved);
+    currentInvoice = saved;
     renderInvoice();
     alert("New invoice created for " + patientName);
   });
 });
 
 // ===========================
-// Invoice Data
+// Backend Functions
 // ===========================
-let invoices = [
-  {
-    id: "INV-2025-0012",
-    patientName: "John Doe",
-    patientId: "P12345",
-    date: "15 Nov 2025",
-    dueDate: "22 Nov 2025",
-    status: "unpaid",
-    discount: 0,
-    services: [
-      { date: "12 Nov 2025", service: "Oncology Consultation", desc: "Initial consultation", qty: 1, unitPrice: 2500 },
-      { date: "13 Nov 2025", service: "Lab Test", desc: "Blood work", qty: 1, unitPrice: 5000 },
-      { date: "14 Nov 2025", service: "Chemotherapy", desc: "First cycle", qty: 1, unitPrice: 15000 },
-      { date: "15 Nov 2025", service: "Medication", desc: "Pain management", qty: 2, unitPrice: 1200 }
-    ]
+async function fetchInvoices() {
+  try {
+    const res = await fetch(API_URL);
+    invoices = await res.json();
+    currentInvoice = invoices[0] || null;
+    if (currentInvoice) renderInvoice();
+  } catch (err) {
+    console.error("Error fetching invoices:", err);
   }
-];
+}
 
-let currentInvoice = invoices[0];
+async function updateInvoice(id, updates) {
+  try {
+    const res = await fetch(`${API_URL}/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Error updating invoice:", err);
+  }
+}
+
+async function deleteInvoice(id) {
+  try {
+    await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+    invoices = invoices.filter(inv => inv._id !== id);
+    currentInvoice = invoices[0] || null;
+    renderInvoice();
+  } catch (err) {
+    console.error("Error deleting invoice:", err);
+  }
+}
 
 // ===========================
 // Render Invoice (Unified)
 // ===========================
 function renderInvoice() {
+  if (!currentInvoice) return;
+
   // --- Main Billing Table ---
   const tbody = document.querySelector(".billing-table tbody");
   if (tbody) {
@@ -118,7 +155,7 @@ function renderInvoice() {
       const total = service.qty * service.unitPrice;
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${service.date}</td>
+        <td>${new Date(service.date).toLocaleDateString()}</td>
         <td>${service.service}</td>
         <td>${service.desc}</td>
         <td>${service.qty}</td>
@@ -138,7 +175,7 @@ function renderInvoice() {
   if (tbodyInvoice) {
     tbodyInvoice.innerHTML = currentInvoice.services.map(s => `
       <tr>
-        <td>${s.date}</td>
+        <td>${new Date(s.date).toLocaleDateString()}</td>
         <td>${s.service}</td>
         <td>${s.desc}</td>
         <td>${s.qty}</td>
@@ -188,7 +225,7 @@ function calculateTotals(invoice) {
 // ===========================
 // Event Delegation for Edit/Delete
 // ===========================
-document.querySelector(".billing-table tbody")?.addEventListener("click", e => {
+document.querySelector(".billing-table tbody")?.addEventListener("click", async e => {
   const row = e.target.closest("tr");
   if (!row) return;
   const index = Array.from(row.parentNode.children).indexOf(row);
@@ -196,6 +233,7 @@ document.querySelector(".billing-table tbody")?.addEventListener("click", e => {
   if (e.target.closest(".btn-delete")) {
     if (confirm("Are you sure you want to delete this service?")) {
       currentInvoice.services.splice(index, 1);
+      await updateInvoice(currentInvoice._id, { services: currentInvoice.services });
       renderInvoice();
     }
   }
@@ -208,11 +246,12 @@ document.querySelector(".billing-table tbody")?.addEventListener("click", e => {
 // ===========================
 // Service / Discount Modals
 // ===========================
-function openServiceModal(service = null, index = null) {
+async function openServiceModal(service = null, index = null) {
   const serviceName = service ? service.service : "";
   const desc = service ? service.desc : "";
   const qty = service ? service.qty : 1;
   const price = service ? service.unitPrice : 1000;
+
   const newService = prompt(`Enter Service Name:`, serviceName);
   if (!newService) return;
   const newDesc = prompt("Enter Description:", desc);
@@ -220,7 +259,7 @@ function openServiceModal(service = null, index = null) {
   const newPrice = parseFloat(prompt("Enter Unit Price:", price));
 
   const serviceObj = {
-    date: new Date().toLocaleDateString(),
+    date: new Date(),
     service: newService,
     desc: newDesc,
     qty: newQty,
@@ -232,42 +271,79 @@ function openServiceModal(service = null, index = null) {
   } else {
     currentInvoice.services.push(serviceObj);
   }
+
+  await updateInvoice(currentInvoice._id, { services: currentInvoice.services });
   renderInvoice();
 }
 
-function openDiscountModal() {
+async function openDiscountModal() {
   const discount = parseFloat(prompt("Enter discount amount:", currentInvoice.discount || 0));
   if (!isNaN(discount)) {
     currentInvoice.discount = discount;
+    await updateInvoice(currentInvoice._id, { discount });
     renderInvoice();
   }
 }
 
 // ===========================
-// Export Functions
 // ===========================
-function exportCSV() {
-  let csv = "Date,Service,Description,Quantity,Unit Price,Amount\n";
-  currentInvoice.services.forEach(s => {
-    csv += `${s.date},${s.service},${s.desc},${s.qty},${s.unitPrice},${s.qty*s.unitPrice}\n`;
-  });
-  const blob = new Blob([csv], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${currentInvoice.id}.csv`;
-  link.click();
+// Export CSV (Backend)
+// ===========================
+async function exportCSV() {
+  try {
+    const token = localStorage.getItem("token"); // assuming JWT stored in localStorage
+    const res = await fetch(`${API_URL}/export/csv`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    if (!res.ok) throw new Error("Failed to export CSV");
+
+    const blob = await res.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `invoices_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+  } catch (err) {
+    console.error("CSV export error:", err);
+    alert("Failed to export invoices CSV. Please try again.");
+  }
 }
 
-function exportPDF() {
-  const printWindow = window.open("", "", "height=600,width=800");
-  printWindow.document.write("<html><head><title>Invoice</title></head><body>");
-  printWindow.document.write(document.querySelector(".invoice-preview").innerHTML);
-  printWindow.document.write("</body></html>");
-  printWindow.document.close();
-  printWindow.print();
-}
 
 // ===========================
-// Initial Render
+// Export PDF (from backend)
 // ===========================
-renderInvoice();
+async function exportPDF() {
+  try {
+    // Confirm we have an invoice selected
+    if (!currentInvoice || !currentInvoice._id) return alert("No invoice selected!");
+
+    // Call backend PDF export endpoint for this invoice
+    // If you want bulk export, you can use /export/pdf route instead
+    const res = await fetch(`https://lunar-hmis-backend.onrender.com/api/billing/export/pdf`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${localStorage.getItem("token")}` // if using auth
+      }
+    });
+
+    if (!res.ok) throw new Error("Failed to generate PDF");
+
+    const blob = await res.blob(); // get PDF as blob
+    const url = URL.createObjectURL(blob);
+
+    // Create a temporary link and trigger download
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `invoice_${currentInvoice._id || "invoice"}.pdf`;
+    link.click();
+
+    // Clean up
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Error exporting PDF:", err);
+    alert("Failed to export PDF. Check console for details.");
+  }
+}

@@ -1,48 +1,51 @@
  // Simple functionality for demonstration
-      document.addEventListener("DOMContentLoaded", function () {
-        // Get user role from localStorage (set during login)
-        const userRole = localStorage.getItem("userRole") || "admin";
-        const userName = localStorage.getItem("userName") || "Admin User";
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    // ✅ Ask backend who this user is
+    const res = await fetch("/api/auth/me", { credentials: "include" });
+    if (!res.ok) throw new Error("Not authenticated");
 
-        // Update user info in header
-        document.querySelector(".user-details h3").textContent = userName;
-        document.querySelector(".user-details p").textContent =
-          userRole.charAt(0).toUpperCase() + userRole.slice(1);
+    const { role, name } = await res.json();
 
-        // Adjust UI based on user role
-        if (userRole !== "admin") {
-          // Hide staff management features for non-admin users
-          document.querySelector(".btn-primary").style.display = "none";
-          document
-            .querySelectorAll(".btn-edit, .btn-delete, .btn-assign")
-            .forEach((btn) => {
-              btn.style.display = "none";
-            });
+    // Save globally
+    const userRole = role;
+    const userName = name;
 
-          // Show message for non-admin users
-          const pageTitle = document.querySelector(".page-title");
-          pageTitle.innerHTML += " <small>(View Only)</small>";
-        }
-      });
+    // Update UI
+    document.querySelector(".user-details h3").textContent = userName;
+    document.querySelector(".user-details p").textContent =
+      userRole.charAt(0).toUpperCase() + userRole.slice(1);
 
-      // Logout function
-      function logout() {
-        // Clear user data from localStorage
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("userName");
+    // Role-based UI adjustments
+    if (userRole !== "admin") {
+      document.querySelector(".btn-primary").style.display = "none";
+      document.querySelectorAll(".btn-edit, .btn-delete, .btn-assign")
+        .forEach((btn) => (btn.style.display = "none"));
 
-        // Redirect to login page
-        window.location.href = "index.html";
-      }
+      const pageTitle = document.querySelector(".page-title");
+      pageTitle.innerHTML += " <small>(View Only)</small>";
+    }
+  } catch (err) {
+    console.error("Auth check failed:", err);
+    logout();
+  }
+});
 
-      // Modal functions
+// ✅ Logout now calls backend and clears local storage
+function logout() {
+  fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+  localStorage.clear();
+  window.location.href = "/index.html";
+}
+
+      /* Modal functions
       function openModal() {
         document.getElementById("staffModal").style.display = "flex";
       }
 
       function closeModal() {
         document.getElementById("staffModal").style.display = "none";
-      }
+      }*/
 
       // Tab functions
       function openTab(evt, tabName) {
@@ -76,13 +79,67 @@
 // ==========================
 
 // Inventory of staff
-let staff = [
-  { id: "S1001", firstName: "Dr. Achieng", lastName: "", role: "doctor", department: "Oncology", specialty: "", contact: "achieng@lunarcare.com | +254 712 345 678", status: "active" },
-  { id: "S1002", firstName: "Nurse Jane", lastName: "", role: "nurse", department: "Oncology Nursing", specialty: "", contact: "jane@lunarcare.com | +254 723 456 789", status: "active" },
-  { id: "S1003", firstName: "Pharmacist John", lastName: "", role: "pharmacist", department: "Pharmacy", specialty: "", contact: "john@lunarcare.com | +254 734 567 890", status: "active" },
-  { id: "S1004", firstName: "Cashier Mary", lastName: "", role: "cashier", department: "Finance", specialty: "", contact: "mary@lunarcare.com | +254 745 678 901", status: "active" },
-  { id: "S1005", firstName: "Dr. Kamau", lastName: "", role: "doctor", department: "Radiotherapy", specialty: "", contact: "kamau@lunarcare.com | +254 756 789 012", status: "active" }
-];
+// ==========================
+// Staff Frontend Logic
+// ==========================
+
+let staff = [];
+
+// Fetch staff list from backend
+async function loadStaff() {
+  try {
+    const res = await fetch("/api/staff");
+    if (!res.ok) throw new Error("Failed to fetch staff");
+    staff = await res.json();
+    renderTable();
+  } catch (err) {
+    console.error("❌ Error loading staff:", err);
+    alert("Could not load staff list.");
+  }
+}
+
+// Render staff table
+function renderTable() {
+  const tbody = document.querySelector(".staff-table tbody");
+  tbody.innerHTML = "";
+
+  staff.forEach((s) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${s._id}</td>
+      <td>${s.firstName} ${s.lastName || ""}</td>
+      <td>${s.role}</td>
+      <td>${s.department}${s.specialty ? " / " + s.specialty : ""}</td>
+      <td>${s.contact}</td>
+      <td>${s.status}</td>
+      <td>
+        <button class="btn-edit" onclick="editStaff('${s._id}')">Edit</button>
+        <button class="btn-delete" onclick="deleteStaff('${s._id}')">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Delete staff
+async function deleteStaff(id) {
+  if (!confirm("Are you sure you want to delete this staff member?")) return;
+
+  try {
+    const res = await fetch(`/api/staff/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete staff");
+    await loadStaff(); // reload table
+  } catch (err) {
+    console.error("❌ Error deleting staff:", err);
+    alert("Could not delete staff. Try again.");
+  }
+}
+
+// Auto-load on page ready
+document.addEventListener("DOMContentLoaded", loadStaff);
+
+
+
 
 let currentPage = 1;
 const rowsPerPage = 5;
@@ -124,10 +181,19 @@ function renderTable() {
         <button class="action-btn btn-view" onclick="viewStaff('${s.id}')"><i class="fas fa-eye"></i> View</button>
         <button class="action-btn btn-edit" onclick="editStaff('${s.id}')"><i class="fas fa-edit"></i> Edit</button>
         <button class="action-btn btn-assign" onclick="assignRole('${s.id}')"><i class="fas fa-user-cog"></i> Role</button>
+        <button class="action-btn btn-delete" onclick="deleteStaff('${s.id}')"><i class="fas fa-trash"></i> Delete</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
+
+  // 🔐 Hide buttons if not admin
+  if (userRole !== "admin") {
+    document.querySelector(".btn-primary").style.display = "none"; // hide Add Staff
+    document.querySelectorAll(".btn-edit, .btn-delete, .btn-assign").forEach(btn => {
+      btn.style.display = "none";
+    });
+  }
 
   // Update pagination info
   const info = document.querySelector(".pagination-info");
@@ -135,7 +201,35 @@ function renderTable() {
 }
 
 // --------------------------
-// Add Staff
+// --------------------------
+// Add / Edit Staff (Modal Submit)
+// --------------------------
+// --------------------------
+// Modal Helpers
+// --------------------------
+/*function openModal() {
+  document.getElementById("staffModal").style.display = "block";
+}
+
+function closeModal() {
+  document.getElementById("staffModal").style.display = "none";
+}*/
+
+/*function resetModal() {
+  document.getElementById("first-name").value = "";
+  document.getElementById("last-name").value = "";
+  document.getElementById("role").value = "";
+  document.getElementById("department").value = "";
+  document.getElementById("specialty").value = "";
+  document.getElementById("phone").value = "";
+  document.getElementById("email").value = "";
+  document.getElementById("status").value = "active";
+
+  currentEditId = null; // reset editing state
+}
+*/
+// --------------------------
+// Add / Edit Staff (Modal Submit)
 // --------------------------
 document.querySelector("#staffModal .btn-primary").addEventListener("click", () => {
   const firstName = document.getElementById("first-name").value.trim();
@@ -147,46 +241,54 @@ document.querySelector("#staffModal .btn-primary").addEventListener("click", () 
   const email = document.getElementById("email").value.trim();
   const status = document.getElementById("status").value || "active";
 
+  // Validation
   if (!firstName || !role || !department) {
     alert("Please fill all required fields.");
     return;
   }
 
-  if (currentEditId) {
-    // Edit existing staff
-    const staffIndex = staff.findIndex(s => s.id === currentEditId);
-    if (staffIndex !== -1) {
-      staff[staffIndex] = {
-        ...staff[staffIndex],
-        firstName,
-        lastName,
-        role,
-        department,
-        specialty,
-        contact: `${email} | ${phone}`,
-        status
-      };
-    }
-    currentEditId = null;
-  } else {
-    // Add new staff
-    const newId = `S${1000 + staff.length + 1}`;
-    staff.push({
-      id: newId,
-      firstName,
-      lastName,
-      role,
-      department,
-      specialty,
-      contact: `${email} | ${phone}`,
-      status
-    });
-  }
+  const staffData = {
+    firstName,
+    lastName,
+    role,
+    department,
+    specialty,
+    contact: `${email} | ${phone}`,
+    status
+  };
 
-  closeModal();
-  resetModal();
-  renderTable();
+  if (currentEditId) {
+    saveStaff(staffData, true, currentEditId);
+  } else {
+    saveStaff(staffData, false);
+  }
 });
+
+// --------------------------
+// Save Staff (Create / Edit)
+// --------------------------
+async function saveStaff(staffData, isEdit = false, id = null) {
+  const url = isEdit ? `/api/staff/${id}` : "/api/staff";
+  const method = isEdit ? "PUT" : "POST";
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(staffData)
+    });
+
+    if (!res.ok) throw new Error("Failed to save staff");
+
+    closeModal();
+    resetModal();
+    await loadStaff(); // reload staff list
+  } catch (err) {
+    console.error("❌ Error saving staff:", err);
+    alert("Error saving staff. Please try again.");
+  }
+}
+
 
 // --------------------------
 // Edit Staff
@@ -210,6 +312,19 @@ function editStaff(id) {
   document.querySelector("#staffModal .modal-title").textContent = "Edit Staff Member";
 }
 
+//Delete Staff
+async function deleteStaff(id) {
+  if (!confirm("Are you sure you want to delete this staff member?")) return;
+  try {
+    const res = await fetch(`/api/staff/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete staff");
+    await loadStaff();
+  } catch (err) {
+    console.error(err);
+    alert("Error deleting staff");
+  }
+}
+
 // --------------------------
 // View Staff (simple alert for now)
 // --------------------------
@@ -221,23 +336,48 @@ function viewStaff(id) {
 // --------------------------
 // Assign Role (example)
 // --------------------------
-function assignRole(id) {
-  const s = staff.find(st => st.id === id);
-  const newRole = prompt("Enter new role for staff:", s.role);
-  if (newRole) {
-    s.role = newRole.toLowerCase();
-    renderTable();
+async function assignRole(id) {
+  const newRole = prompt("Enter new role for staff:");
+  if (!newRole) return;
+
+  try {
+    const res = await fetch(`/api/staff/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: newRole.toLowerCase() })
+    });
+    if (!res.ok) throw new Error("Failed to update role");
+    await loadStaff();
+  } catch (err) {
+    console.error("Error assigning role:", err);
+    alert("Could not update role.");
   }
 }
+
 
 // --------------------------
 // Export CSV
 // --------------------------
 function exportCSV() {
+  const searchTerm = document.getElementById("search-name").value.toLowerCase();
+  const roleFilter = document.getElementById("filter-role").value;
+  const statusFilter = document.getElementById("filter-status").value;
+
+  let filteredStaff = staff.filter(s => {
+    const matchName = s.firstName.toLowerCase().includes(searchTerm) || s.id.toLowerCase().includes(searchTerm);
+    const matchRole = roleFilter ? s.role === roleFilter : true;
+    const matchStatus = statusFilter ? s.status === statusFilter : true;
+    return matchName && matchRole && matchStatus;
+  });
+
+  const start = (currentPage - 1) * rowsPerPage;
+  const paginatedStaff = filteredStaff.slice(start, start + rowsPerPage);
+
   let csv = "ID,Name,Role,Department,Contact,Status\n";
-  staff.forEach(s => {
+  paginatedStaff.forEach(s => {
     csv += `${s.id},"${s.firstName} ${s.lastName}",${s.role},${s.department},"${s.contact}",${s.status}\n`;
   });
+
   const blob = new Blob([csv], { type: "text/csv" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -247,7 +387,7 @@ function exportCSV() {
 
 // --------------------------
 // Export PDF
-// --------------------------
+/* --------------------------
 function exportPDF() {
   const tableHtml = document.querySelector(".staff-table").outerHTML;
   const newWin = window.open("");
@@ -255,7 +395,7 @@ function exportPDF() {
   newWin.document.write(tableHtml);
   newWin.document.write("</body></html>");
   newWin.print();
-}
+}*/
 
 // --------------------------
 // Search Button
@@ -285,10 +425,20 @@ document.querySelectorAll(".pagination-btn").forEach(btn => {
 function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
-function openModal() { document.getElementById("staffModal").style.display = "block"; }
+function openModal() { document.getElementById("staffModal").style.display = "flex"; }
 function closeModal() { document.getElementById("staffModal").style.display = "none"; currentEditId = null; document.querySelector("#staffModal .modal-title").textContent = "Add New Staff Member"; }
-function resetModal() { document.querySelector("#staffModal").querySelectorAll("input, select, textarea").forEach(el => el.value = ""); }
+function resetModal() {
+  document.getElementById("first-name").value = "";
+  document.getElementById("last-name").value = "";
+  document.getElementById("role").value = "";
+  document.getElementById("department").value = "";
+  document.getElementById("specialty").value = "";
+  document.getElementById("phone").value = "";
+  document.getElementById("email").value = "";
+  document.getElementById("status").value = "active";
 
+  currentEditId = null; // reset editing state
+}
 // --------------------------
 // Initial render
 // --------------------------
@@ -299,7 +449,7 @@ document.querySelector(".btn-success").addEventListener("click", exportCSV);
 document.querySelector(".btn-warning").addEventListener("click", exportPDF);
 // --------------------------
 // Export CSV (filtered & paginated)
-// --------------------------
+ 
 function exportCSV() {
   const searchTerm = document.getElementById("search-name").value.toLowerCase();
   const roleFilter = document.getElementById("filter-role").value;
@@ -312,7 +462,6 @@ function exportCSV() {
     return matchName && matchRole && matchStatus;
   });
 
-  // Pagination
   const start = (currentPage - 1) * rowsPerPage;
   const paginatedStaff = filteredStaff.slice(start, start + rowsPerPage);
 
@@ -320,6 +469,7 @@ function exportCSV() {
   paginatedStaff.forEach(s => {
     csv += `${s.id},"${s.firstName} ${s.lastName}",${s.role},${s.department},"${s.contact}",${s.status}\n`;
   });
+
   const blob = new Blob([csv], { type: "text/csv" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -327,10 +477,10 @@ function exportCSV() {
   link.click();
 }
 
-// --------------------------
-// Export PDF (filtered & paginated)
-// --------------------------
-function exportPDF() {
+ // --------------------------
+ // Export PDF (filtered & paginated)
+ // --------------------------
+  function exportPDF() {
   const searchTerm = document.getElementById("search-name").value.toLowerCase();
   const roleFilter = document.getElementById("filter-role").value;
   const statusFilter = document.getElementById("filter-status").value;
@@ -379,3 +529,5 @@ function exportPDF() {
   newWin.document.write("</body></html>");
   newWin.print();
 }
+
+      
