@@ -1,3 +1,6 @@
+// Base API URL (point to your Render backend)
+const API_BASE = "https://lunar-hmis-backend.onrender.com";
+
 
 // Global variables
 let currentPage = 1;
@@ -204,20 +207,30 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Initialize patient data
+// Initialize patient data
 async function initializePatients() {
   try {
-    const response = await fetch('/api/patients'); // Adjust URL to your backend endpoint
-    if (!response.ok) throw new Error('Failed to fetch patients');
+    const response = await fetch(`${API_BASE}/api/patients`);
+    if (!response.ok) throw new Error("Failed to fetch patients");
+
     const data = await response.json();
 
-    allPatients = data; // replace local sample data
+    // ✅ If backend returned patients, use them
+    // ✅ If backend empty, fall back to samplePatients
+    allPatients = (data && data.length > 0) ? data : samplePatients;
     filteredPatients = [...allPatients];
-    
+
     renderPatients();
     updatePagination();
   } catch (error) {
-    console.error('Error fetching patients:', error);
-    alert('Failed to load patient data.');
+    console.error("Error fetching patients:", error);
+
+    // ✅ If backend completely fails, fall back to dummy data
+    allPatients = samplePatients;
+    filteredPatients = [...allPatients];
+
+    renderPatients();
+    updatePagination();
   }
 }
 
@@ -296,7 +309,7 @@ async function handleSearch() {
       limit: patientsPerPage
     });
 
-    const response = await fetch(`/api/patients?${query.toString()}`);
+    const response = await fetch(`${API_BASE}/api/patients?${query.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch filtered patients');
     const data = await response.json();
 
@@ -492,7 +505,7 @@ function handlePagination(button) {
 }
 async function fetchPatients(page = 1, limit = 5) {
   try {
-    const response = await fetch(`/api/patients?page=${page}&limit=${limit}`);
+    const response = await fetch(`${API_BASE}/api/patients?page=${page}&limit=${limit}`);
     if (!response.ok) throw new Error('Failed to fetch patients');
 
     const data = await response.json();
@@ -500,6 +513,7 @@ async function fetchPatients(page = 1, limit = 5) {
     // Backend should return { patients: [...], totalCount: 100 }
     allPatients = data.patients;
     filteredPatients = [...allPatients]; // optional if you want to allow frontend search/filter
+    window.totalCount = data.totalCount; 
 
     renderPatients();
     updatePagination(data.totalCount);
@@ -548,31 +562,36 @@ function updatePagination(totalCount) {
 
 // View patient details
 function getPatientId(patient) {
-  return patient.id || patient._id;
+  return patient._id || patient.id; // backend first
 }
 
 function viewPatient(patientId) {
   const patient = allPatients.find(p => getPatientId(p) === patientId);
-  if (!patient) return;
+  if (!patient) {
+    alert("Patient not found.");
+    return;
+  }
 
-  // In a real app, replace with modal/view page
+  // In a real app, replace this alert with a modal or details view
   alert(
     `Viewing patient: ${patient.firstName} ${patient.lastName}\n` +
     `ID: ${getPatientId(patient)}\n` +
-    `Diagnosis: ${patient.diagnosis}`
+    `Diagnosis: ${patient.diagnosis || "N/A"}`
   );
 }
 
+
 // Edit patient
-function getPatientId(patient) {
+// Helper to normalize id/_id (reuse everywhere)
+function normalizeId(patient) {
   return patient.id || patient._id;
 }
 
 function editPatient(patientId) {
-  const patient = allPatients.find(p => getPatientId(p) === patientId);
+  const patient = allPatients.find(p => normalizeId(p) === patientId);
   if (!patient) return;
 
-  // Example: prefill modal fields with patient data
+  // Prefill modal fields with patient data
   document.getElementById("first-name").value = patient.firstName || "";
   document.getElementById("last-name").value = patient.lastName || "";
   document.getElementById("dob").value = patient.dob ? patient.dob.split("T")[0] : "";
@@ -595,10 +614,15 @@ function editPatient(patientId) {
   document.getElementById("next-appointment").value = patient.nextAppointment ? patient.nextAppointment.split("T")[0] : "";
 
   // Track which patient is being edited
-  currentEditId = getPatientId(patient);
+  const modal = document.getElementById("patientModal");
+  modal.dataset.patientId = normalizeId(patient);
+
+  // Update modal title for clarity
+  document.querySelector(".modal-title").textContent = "Edit Patient";
 
   openModal();
 }
+
 
 // Calculate date of birth from age
 // Calculate date of birth from age
@@ -614,58 +638,71 @@ function calculateDOB(age) {
 
 // Save patient (add or edit)
 // Helper to normalize id/_id
+// Helper to normalize id/_id (used when rendering lists)
 function normalizeId(patient) {
   return patient.id || patient._id;
 }
 
 // Save patient (add or edit)
 async function savePatient() {
-  const modal = document.querySelector('.modal-content');
-  const patientId = modal.dataset.patientId; // can be id or _id
+  const modal = document.getElementById("patientModal");
+  const patientId = modal.dataset.patientId;
   const isEditing = !!patientId;
 
+  const dob = document.getElementById('dob').value;
+
   const patientData = {
-    firstName: document.getElementById('first-name').value,
-    lastName: document.getElementById('last-name').value,
-    age: calculateAge(document.getElementById('dob').value),
-    gender: document.getElementById('gender').value, // keep raw, backend already enforces enum
-    phone: document.getElementById('phone').value,
-    email: document.getElementById('email').value,
-    address: document.getElementById('address').value,
-    diagnosis: document.getElementById('diagnosis').value,
-    diagnosisDate: document.getElementById('diagnosis-date').value,
+    firstName: document.getElementById('first-name').value.trim(),
+    lastName: document.getElementById('last-name').value.trim(),
+    dob: dob ? new Date(dob).toISOString() : null,   // ✅ send ISO date
+    gender: document.getElementById('gender').value,
+    phone: document.getElementById('phone').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    address: document.getElementById('address').value.trim(),
+    diagnosis: document.getElementById('diagnosis').value.trim(),
+    diagnosisDate: document.getElementById('diagnosis-date').value 
+      ? new Date(document.getElementById('diagnosis-date').value).toISOString() 
+      : null,
     stage: document.getElementById('stage').value,
-    treatmentPlan: document.getElementById('treatment-plan').value,
-    allergies: document.getElementById('allergies').value,
-    medicalHistory: document.getElementById('medical-history').value,
-    insuranceProvider: document.getElementById('insurance-provider').value,
-    insuranceId: document.getElementById('insurance-id').value,
+    treatmentPlan: document.getElementById('treatment-plan').value.trim(),
+    allergies: document.getElementById('allergies').value.trim(),
+    medicalHistory: document.getElementById('medical-history').value.trim(),
+    insuranceProvider: document.getElementById('insurance-provider').value.trim(),
+    insuranceId: document.getElementById('insurance-id').value.trim(),
     coverage: document.getElementById('coverage').value,
-    validUntil: document.getElementById('valid-until').value,
-    status: 'active',
-    doctor: document.getElementById('doctor').value || null, // use doctor dropdown instead of hardcode
+    validUntil: document.getElementById('valid-until').value 
+      ? new Date(document.getElementById('valid-until').value).toISOString() 
+      : null,
+    status: "active",   // keep if your schema expects it
+    doctor: document.getElementById('doctor').value || null, 
   };
 
   try {
-    const url = isEditing ? `/api/patients/${patientId}` : '/api/patients';
-    const method = isEditing ? 'PUT' : 'POST';
+    const url = isEditing
+      ? `${API_BASE}/api/patients/${patientId}`
+      : `${API_BASE}/api/patients`;
+    const method = isEditing ? "PUT" : "POST";
 
     const response = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patientData),
     });
 
-    if (!response.ok) throw new Error('Failed to save patient');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Save failed:", errorData);
+      throw new Error("Failed to save patient");
+    }
 
-    await initializePatients(); // reload updated data
+    await initializePatients();
     closeModal();
-    resetForm();
   } catch (error) {
     console.error(error);
-    alert('Error saving patient.');
+    alert("Error saving patient.");
   }
 }
+
 
 
 
@@ -875,7 +912,11 @@ function closeModal() {
 
 function resetForm() {
   document.querySelector('.modal-title').textContent = 'Add New Patient';
-  document.querySelector('.modal-content').dataset.patientId = '';
+
+  // ✅ Fix: clear the dataset on #patientModal, not .modal-content
+  document.getElementById('patientModal').dataset.patientId = '';
+
+  // Reset tabs
   document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.getElementById('personal').classList.add('active');

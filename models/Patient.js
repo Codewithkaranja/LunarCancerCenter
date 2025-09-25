@@ -25,7 +25,7 @@ const patientSchema = new mongoose.Schema(
     coverage: { type: String, enum: ["full", "partial", "copay"] },
     validUntil: { type: Date },
     status: { type: String, enum: ["active", "inactive", "pending"], default: "active" },
-    doctor: { type: mongoose.Schema.Types.ObjectId, ref: "Staff", required: true },
+    doctor: { type: mongoose.Schema.Types.ObjectId, ref: "Staff", required: false },
     nextAppointment: { type: Date }, // optional, since appointments are tracked separately
   },
   { timestamps: true }

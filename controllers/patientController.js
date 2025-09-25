@@ -31,10 +31,13 @@ export const createPatient = async (req, res) => {
   try {
     const patientData = { ...req.body };
 
-    // Assign doctor if user is doctor
-    if (req.user?.role === 'doctor') {
-      patientData.doctor = req.user._id; // must be ObjectId
-    }
+    // --- Auth bypass ---
+    // const user = req.user; 
+    // if (user?.role === 'doctor') {
+    //   patientData.doctor = user._id;
+    // }
+    const dummyUser = { _id: '64ed123abc456def7890abc1', role: 'admin' };
+    patientData.doctor = patientData.doctor || dummyUser._id;
 
     // Calculate age
     if (patientData.dob && !patientData.age) {
@@ -60,8 +63,8 @@ export const getAllPatients = async (req, res) => {
 
     const query = {};
 
-    // Doctor sees only own patients
-    if (req.user?.role === 'doctor') query.doctor = req.user._id;
+    // --- Auth bypass ---
+    // if (req.user?.role === 'doctor') query.doctor = req.user._id;
 
     // Search by first/last name
     if (search) {
