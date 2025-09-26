@@ -6,6 +6,7 @@ import cors from 'cors';
 import appointmentRoutes from './routes/appointmentRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
 import patientRoutes from './routes/patientsRoutes.js';
+import invoiceRoutes from './routes/invoiceRoutes.js'; // ✅ added
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 // Load environment variables
@@ -22,6 +23,7 @@ app.use(express.json());
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/patients', patientRoutes);
+app.use('/api/billing', invoiceRoutes); // ✅ MOUNT INVOICE ROUTES
 
 // Test route
 app.get('/', (req, res) => res.send('Backend is running!'));
