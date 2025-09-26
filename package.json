@@ -15,7 +15,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
-    "mongoose": "^7.8.7"
+    "json2csv": "^6.0.0-alpha.2",
+    "mongoose": "^7.8.7",
+    "pdfkit": "^0.17.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

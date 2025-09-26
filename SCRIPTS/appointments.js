@@ -203,22 +203,30 @@ function clearModal() {
 // ==========================
 async function populateDropdowns() {
   try {
+    // Fetch patients
     const patientRes = await fetch("https://lunar-hmis-backend.onrender.com/api/patients");
-    const patients = await patientRes.json();
+    const patientsData = await patientRes.json();
+    const patients = patientsData.patients || []; // <-- use the array inside 'patients'
+
     const patientSelect = document.getElementById("patient");
     patientSelect.innerHTML = '<option value="">Select Patient</option>' +
-      patients.map(p => `<option value="${p._id}">${p.name} (${p.patientId || ""})</option>`).join("");
+      patients.map(p => `<option value="${p._id}">${p.firstName} ${p.lastName}</option>`).join("");
 
+    // Fetch doctors
     const doctorRes = await fetch("https://lunar-hmis-backend.onrender.com/api/doctors");
-    const doctors = await doctorRes.json();
+    const doctorsData = await doctorRes.json();
+    const doctors = doctorsData.doctors || []; // adjust if your API wraps it like patients
+
     const doctorSelect = document.getElementById("doctor");
     doctorSelect.innerHTML = '<option value="">Select Doctor/Nurse</option>' +
       doctors.map(d => `<option value="${d._id}">${d.name}</option>`).join("");
+
   } catch (err) {
     console.error("Error populating dropdowns:", err);
     alert("Failed to load patients or doctors. Please try again later.");
   }
 }
+
 
 // ==========================
 // Save Appointment
@@ -372,6 +380,81 @@ function openTab(event, tabId) {
   document.querySelectorAll(".tab-content").forEach(tc => tc.classList.remove("active"));
   document.getElementById(tabId).classList.add("active");
 }
+
+// Toggle between List View and Calendar View
+// ==========================
+// View Toggle
+// ==========================
+function toggleView(view) {
+  const listBtn = document.getElementById("listViewBtn");
+  const calendarBtn = document.getElementById("calendarViewBtn");
+  const listContainer = document.querySelector(".appointments-table-container"); // wrap your table in this div
+  const calendarContainer = document.getElementById("calendarContainer"); // create this div in HTML
+
+  if (view === "list") {
+    // Show list, hide calendar
+    listContainer.style.display = "block";
+    calendarContainer.style.display = "none";
+
+    // Style buttons
+    listBtn.style.backgroundColor = "#007bff";
+    listBtn.style.color = "white";
+    calendarBtn.style.backgroundColor = "#f0f0f0";
+    calendarBtn.style.color = "#333";
+  } else if (view === "calendar") {
+    // Show calendar, hide list
+    listContainer.style.display = "none";
+    calendarContainer.style.display = "block";
+
+    // Style buttons
+    calendarBtn.style.backgroundColor = "#007bff";
+    calendarBtn.style.color = "white";
+    listBtn.style.backgroundColor = "#f0f0f0";
+    listBtn.style.color = "#333";
+
+    // Optional: populate calendar view
+    if (typeof renderCalendar === "function") {
+      renderCalendar();
+    }
+  }
+}
+
+// Example: simple renderCalendar function
+function renderCalendar() {
+  const calendarContainer = document.getElementById("calendarContainer");
+  calendarContainer.innerHTML = "<p>Calendar view coming soon...</p>";
+}
+
+function renderCalendar() {
+  const calendarEl = document.getElementById("calendar");
+  calendarEl.innerHTML = ""; // clear previous
+
+  appointments.forEach(app => {
+    const div = document.createElement("div");
+    div.textContent = `${app.date} ${app.time} - ${app.patient} with ${app.doctor}`;
+    div.classList.add("calendar-event");
+    calendarEl.appendChild(div);
+  });
+}
+
+
+// Example: CSS for .hidden
+// .hidden { display: none; }
+
+
+// Logout user
+function logout() {
+  // 1️⃣ Clear any stored tokens or session data
+  localStorage.removeItem("token"); // if you use JWT or session tokens
+  sessionStorage.clear();
+
+  // 2️⃣ Redirect to login page
+  window.location.href = "/HTML/index.html";
+
+  // Optional: show a logout message in console
+  console.log("User logged out successfully");
+}
+
 
 // ==========================
 // Initial Render

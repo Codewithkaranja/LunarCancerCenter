@@ -1068,7 +1068,7 @@
               <a href="staff.html"><i class="fas fa-user-md"></i> Staff</a>
             </li>
             <li>
-              <a href="billing.html"
+              <a href="invoice.html"
                 ><i class="fas fa-file-invoice-dollar"></i> Billing</a
               >
             </li>
@@ -1135,21 +1135,49 @@
           </div>
 
           <!-- View Toggle -->
-          <div class="view-toggle">
+          <div
+            class="view-toggle"
+            style="margin-bottom: 1rem; display: flex; gap: 10px"
+          >
             <button
-              class="view-btn active"
               id="listViewBtn"
               onclick="toggleView('list')"
+              class="view-btn active"
+              style="
+                padding: 8px 16px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                background-color: #007bff;
+                color: white;
+                cursor: pointer;
+              "
             >
               <i class="fas fa-list"></i> List View
             </button>
             <button
-              class="view-btn"
               id="calendarViewBtn"
               onclick="toggleView('calendar')"
+              class="view-btn"
+              style="
+                padding: 8px 16px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                background-color: #f0f0f0;
+                color: #333;
+                cursor: pointer;
+              "
             >
               <i class="fas fa-calendar"></i> Calendar View
             </button>
+          </div>
+
+          <!-- Containers -->
+          <div id="listContainer" style="display: block">
+            <!-- Your list/table content here -->
+          </div>
+
+          <div id="calendarContainer" style="display: none">
+            <!-- Your calendar content here -->
           </div>
 
           <!-- Search Section -->
