@@ -41,9 +41,9 @@ async function fetchReports(category, filters = {}) {
 
 try {
   const res = await fetch(`https://lunar-hmis-backend.onrender.com/api/reports?${params.toString()}`, {
-    headers: {
+    /*headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
+    }*/
   });
   if (!res.ok) throw new Error('Failed to fetch reports');
   const data = await res.json();
@@ -496,7 +496,7 @@ try {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        //'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
       body: JSON.stringify({
         name: reportName,
@@ -586,9 +586,9 @@ try {
   limit: itemsPerPage
 })
    const res = await fetch(`https://lunar-hmis-backend.onrender.com/api/reports/export?${params.toString()}`, {
-  headers: {
+  /*headers: {
     'Authorization': `Bearer ${localStorage.getItem('token')}`
-  }
+  }*/
 });
 
 
@@ -617,7 +617,7 @@ async function downloadReport(id) {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`, // ✅ only if auth is on
+          /*Authorization: `Bearer ${localStorage.getItem("token")}`,*/ // ✅ only if auth is on
         },
       }
     );
