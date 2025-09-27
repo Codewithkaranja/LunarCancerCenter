@@ -1,5 +1,5 @@
 // controllers/reportController.js
-const Report = require('../models/Report');
+const Report = require('../models/Report.js');
 const { Parser } = require('json2csv'); // for export CSV
 
 // Fetch reports with filters, sorting, pagination
