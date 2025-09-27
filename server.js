@@ -7,8 +7,10 @@ import appointmentRoutes from './routes/appointmentRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
 import patientRoutes from './routes/patientsRoutes.js';
 import invoiceRoutes from './routes/invoiceRoutes.js';
+import inventoryRoutes from './routes/inventoryRoutes.js';
+import prescriptionRoutes from './routes/prescriptionRoutes.js'; // ✅ add this
+
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
-import inventoryRoutes from './routes/inventoryRoutes.js'; // create this file
 
 // Load environment variables
 dotenv.config();
@@ -24,8 +26,9 @@ app.use(express.json());
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/patients', patientRoutes);
-app.use('/api/billing', invoiceRoutes); // ✅ MOUNT INVOICE ROUTES
+app.use('/api/billing', invoiceRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/prescriptions', prescriptionRoutes); // ✅ mount prescription routes
 
 // Test route
 app.get('/', (req, res) => res.send('Backend is running!'));

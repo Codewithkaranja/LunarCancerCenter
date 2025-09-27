@@ -466,7 +466,7 @@ function handleQuickAction(e) {
             window.location.href = 'appointments.html?action=follow-up';
             break;
         case 'Send to Billing':
-            window.location.href = 'billing.html?action=create';
+            window.location.href = 'invoice.html?action=create';
             break;
         default:
             console.log('Action not implemented:', actionText);

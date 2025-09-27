@@ -50,55 +50,72 @@
       let currentUserRole = "doctor"; // Default to doctor
 
       // Sample data for medications
-      const medications = [
-        { id: 1, name: "Paclitaxel Injection", stock: 12, price: 12500 },
-        { id: 2, name: "Carboplatin", stock: 82, price: 8750 },
-        { id: 3, name: "Doxorubicin", stock: 28, price: 15200 },
-        { id: 4, name: "Cyclophosphamide", stock: 64, price: 6800 },
-        { id: 5, name: "Tamoxifen", stock: 120, price: 450 },
-        { id: 6, name: "Metformin", stock: 200, price: 120 },
-        { id: 7, name: "Lisinopril", stock: 150, price: 180 },
-      ];
+      let medications = []; // empty array initially
+
+// Fetch medications from backend
+async function fetchMedications() {
+  try {
+    //const token = localStorage.getItem("authToken"); // replace with real token
+    const res = await fetch("https://lunar-hmis-backend.onrender.com/api/medications", {
+      headers: {
+        //"Authorization": `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch medications");
+
+    medications = await res.json(); // should include id, name, stock, price
+    renderPrescriptionItems(); // re-render with updated stock
+  } catch (err) {
+    console.error(err);
+    // Optionally display an inline error
+    const errorContainer = document.getElementById("error-message");
+    if (errorContainer) {
+      errorContainer.textContent = "Error fetching medications from backend.";
+      errorContainer.style.display = "block";
+    }
+  }
+}
+
+// Call this during init
+/*document.addEventListener("DOMContentLoaded", () => {
+  fetchMedications();
+  init(); // your existing init function
+});*/
 
       // Sample data for prescription history
-      let prescriptionHistory = [
-        {
-          id: "RX20251115-001",
-          date: "2025-11-15",
-          patient: "John Doe",
-          medications: ["Paclitaxel", "Carboplatin"],
-          doctor: "Dr. Achieng",
-          status: "dispensed",
-          billStatus: "paid",
-        },
-        {
-          id: "RX20251110-002",
-          date: "2025-11-10",
-          patient: "Mary Smith",
-          medications: ["Tamoxifen", "Metformin"],
-          doctor: "Dr. Kamau",
-          status: "dispensed",
-          billStatus: "paid",
-        },
-        {
-          id: "RX20251105-003",
-          date: "2025-11-05",
-          patient: "Robert Johnson",
-          medications: ["Doxorubicin", "Cyclophosphamide"],
-          doctor: "Dr. Achieng",
-          status: "cancelled",
-          billStatus: "cancelled",
-        },
-        {
-          id: "RX20251101-004",
-          date: "2025-11-01",
-          patient: "Susan Wangari",
-          medications: ["Paclitaxel"],
-          doctor: "Dr. Nyong'o",
-          status: "submitted",
-          billStatus: "pending",
-        },
-      ];
+      let prescriptionHistory = []
+      async function fetchPrescriptionHistory() {
+  try {
+    const res = await fetch('https://lunar-hmis-backend.onrender.com/api/prescriptions', {
+  headers: {
+    //'Authorization': `Bearer ${token}` // make sure token is set
+  }
+});
+
+
+    if (!res.ok) throw new Error('Failed to fetch prescriptions');
+
+    const data = await res.json();
+
+    // Map backend data to format your frontend expects
+    prescriptionHistory = data.map(p => ({
+      id: p._id,
+      date: p.createdAt,
+      patient: p.patientId?.name || "N/A",
+      medications: p.items.map(item => item.medication),
+      doctor: p.doctorId?.name || "N/A",
+      status: p.status,
+      billStatus: p.billStatus
+    }));
+
+    renderPrescriptionHistory(); // re-render table
+  } catch (err) {
+    console.error(err);
+    alert('Error fetching prescription history.');
+  }
+}
+
 
       // Current prescription items
       let prescriptionItems = [
@@ -145,7 +162,7 @@
       // Initialize the application
       function init() {
         renderPrescriptionItems();
-        renderPrescriptionHistory();
+        fetchPrescriptionHistory();
         setupEventListeners();
         applyRolePermissions();
       }
@@ -314,14 +331,35 @@
 
       // Get stock warning if applicable
       function getStockWarning(medicationName) {
-        const medication = medications.find((m) => m.name === medicationName);
-        if (medication && medication.stock < 20) {
-          return `<div class="stock-warning">
-                    <i class="fas fa-exclamation-circle"></i> Low stock: ${medication.stock} remaining
-                  </div>`;
-        }
-        return "";
-      }
+  const medication = medications.find((m) => m.name === medicationName);
+  if (!medication) return "";
+
+  // Low stock warning
+  if (medication.stock < 20) {
+    return `<div class="stock-warning">
+              <i class="fas fa-exclamation-circle"></i> Low stock: ${medication.stock} remaining
+            </div>`;
+  }
+
+  return "";
+}
+
+// Example: refresh stock after submitting prescription
+async function refreshStock() {
+  try {
+    ///const token = localStorage.getItem("authToken"); // your JWT
+    const res = await fetch("https://lunar-hmis-backend.onrender.com/api/medications")/*, {
+      headers: //{ "Authorization": `Bearer ${token}` }
+    });*/
+    if (!res.ok) throw new Error("Failed to fetch stock");
+
+    medications = await res.json();
+    renderPrescriptionItems(); // re-render table with updated stock
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 
       // Add a new medication
       function addMedication() {
@@ -358,15 +396,31 @@
       }
 
       // Update medication
-      function updateMedication(index, medicationId) {
-        const medication = medications.find((m) => m.id == medicationId);
-        if (medication) {
-          prescriptionItems[index].medication = medication.name;
-         const stockWarning = getStockWarning(medication.name);
-        document.querySelectorAll(".stock-warning")[index].innerHTML = stockWarning;
-         checkDrugInteractions();
+   function updateMedication(index, medicationId) {
+  const medication = medications.find((m) => m.id == medicationId);
+  if (medication) {
+    // Update prescription item
+    prescriptionItems[index].medicationId = medication.id; // store ID
+    prescriptionItems[index].medication = medication.name; // store name for UI
 
-      }}
+    // Update stock warning safely
+    const row = prescriptionItemsContainer.rows[index];
+    if (row) {
+      let warningDiv = row.querySelector(".stock-warning");
+      if (!warningDiv) {
+        warningDiv = document.createElement("div");
+        warningDiv.className = "stock-warning";
+        row.cells[0].appendChild(warningDiv);
+      }
+      warningDiv.innerHTML = getStockWarning(medication.name);
+    }
+
+    // Check drug interactions
+    checkDrugInteractions();
+  }
+}
+
+
 
       // Update dosage
       function updateDosage(index, dosage) {
@@ -411,38 +465,33 @@
       }
 
       // Update patient info based on selection
-      function updatePatientInfo() {
-        const patientSelect = document.getElementById("patient-select");
-        const selectedPatient = patientSelect.value;
+      let selectedPatientId = ""; // global variable
 
-        // In a real app, this would fetch patient data from an API
-        if (selectedPatient === "patient1") {
-          document.getElementById("patient-info-name").textContent = "John Doe";
-          document.getElementById("patient-info-id").textContent = "P12345";
-          document.getElementById("patient-info-age").textContent =
-            "42 years, Male";
-          document.getElementById("patient-info-last-visit").textContent =
-            "15 Nov 2025";
-          document.getElementById("patient-info-allergies").textContent =
-            "Penicillin, Sulfa drugs";
-          document.getElementById("patient-info-current-meds").textContent =
-            "Metformin, Lisinopril";
-        } else if (selectedPatient === "patient2") {
-          document.getElementById("patient-info-name").textContent =
-            "Mary Smith";
-          document.getElementById("patient-info-id").textContent = "P12346";
-          document.getElementById("patient-info-age").textContent =
-            "38 years, Female";
-          document.getElementById("patient-info-last-visit").textContent =
-            "12 Nov 2025";
-          document.getElementById("patient-info-allergies").textContent =
-            "None";
-          document.getElementById("patient-info-current-meds").textContent =
-            "Tamoxifen";
-        }
+function updatePatientInfo() {
+  const patientSelect = document.getElementById("patient-select");
+  const selectedPatient = patientSelect.value;
 
-        checkDrugInteractions();
-      }
+  if (selectedPatient === "patient1") {
+    selectedPatientId = "64a3f1b2abc12345d6789012"; // real MongoDB ID
+    document.getElementById("patient-info-name").textContent = "John Doe";
+    document.getElementById("patient-info-id").textContent = "P12345";
+    document.getElementById("patient-info-age").textContent = "42 years, Male";
+    document.getElementById("patient-info-last-visit").textContent = "15 Nov 2025";
+    document.getElementById("patient-info-allergies").textContent = "Penicillin, Sulfa drugs";
+    document.getElementById("patient-info-current-meds").textContent = "Metformin, Lisinopril";
+  } else if (selectedPatient === "patient2") {
+    selectedPatientId = "64a3f1b2abc12345d6789013"; // real MongoDB ID
+    document.getElementById("patient-info-name").textContent = "Mary Smith";
+    document.getElementById("patient-info-id").textContent = "P12346";
+    document.getElementById("patient-info-age").textContent = "38 years, Female";
+    document.getElementById("patient-info-last-visit").textContent = "12 Nov 2025";
+    document.getElementById("patient-info-allergies").textContent = "None";
+    document.getElementById("patient-info-current-meds").textContent = "Tamoxifen";
+  }
+
+  // Check for drug interactions
+  checkDrugInteractions();
+}
 
    // Save prescription as draft
 async function saveDraft() {
@@ -452,8 +501,8 @@ async function saveDraft() {
   }
 
   const payload = {
-    patient: document.getElementById("patient-info-name").textContent,
-   medications: prescriptionItems.map(item => ({
+   patientId: selectedPatientId,
+   items: prescriptionItems.map(item => ({
   medication: item.medication,
   dosage: item.dosage,
   frequency: item.frequency,
@@ -467,14 +516,15 @@ async function saveDraft() {
   };
 
   try {
-    const res = await fetch('/api/prescriptions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    });
+   const res = await fetch('https://lunar-hmis-backend.onrender.com/api/prescriptions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    //'Authorization': `Bearer ${token}` // your token in test mode or real token later
+  },
+  body: JSON.stringify(payload)
+});
+
 
     if (!res.ok) throw new Error("Failed to save draft");
     const data = await res.json();
@@ -482,7 +532,7 @@ async function saveDraft() {
     await fetchPrescriptionHistory();
   } catch (err) {
     console.error(err);
-    alert("Error saving prescription.");
+    alert("Unsuccessful");
   }
 }
 
@@ -498,14 +548,8 @@ async function submitToPharmacy() {
   }
 
   const patientName = document.getElementById("patient-info-name")?.textContent || "";
-  const medicationsList = prescriptionItems.map(item => ({
-  medication: item.medication,
-  dosage: item.dosage,
-  frequency: item.frequency,
-  duration: item.duration,
-  quantity: item.quantity,
-  instructions: item.instructions
-}));
+  const medicationsList = prescriptionItems
+    .filter(item => item.medication && item.quantity > 0);
 
   if (!patientName || medicationsList.length === 0) {
     alert("Please select a patient and add at least one medication.");
@@ -513,33 +557,48 @@ async function submitToPharmacy() {
   }
 
   const payload = {
-    patient: patientName,
-    medications: medicationsList,
+    patientId: selectedPatientId, // store this when user selects a patient
+    items: prescriptionItems.map(item => {
+      const med = medications.find(m => m.name === item.medication);
+      return {
+        medicationId: med?.id, // use ID instead of name
+        dosage: item.dosage,
+        frequency: item.frequency,
+        duration: item.duration,
+        quantity: item.quantity,
+        instructions: item.instructions
+      };
+    }),
     status: "submitted",
     billStatus: "pending"
   };
 
   try {
-    const res = await fetch('/api/prescriptions', {
+    const res = await fetch('https://lunar-hmis-backend.onrender.com/api/prescriptions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        //'Authorization': `Bearer ${token}` // use your token here
       },
       body: JSON.stringify(payload)
     });
 
     if (!res.ok) throw new Error("Failed to submit prescription");
+
     const data = await res.json();
     alert("Prescription submitted to pharmacy successfully!");
-    
-    // Refresh history
+
+    // Refresh prescription history
     await fetchPrescriptionHistory();
+
+    // ✅ Refresh stock so table shows updated stock
+    await refreshStock();
   } catch (err) {
     console.error(err);
     alert("Error submitting prescription.");
   }
 }
+
 
 // Reissue prescription
 async function reissuePrescription() {
@@ -557,14 +616,15 @@ async function reissuePrescription() {
   const prescriptionId = prescriptionIdElement.textContent;
 
   try {
-    const res = await fetch(`/api/prescriptions/${prescriptionId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ status: "submitted" })
-    });
+   const res = await fetch(`https://lunar-hmis-backend.onrender.com/api/prescriptions/${prescriptionId}`, {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json',
+    //'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({ status: "submitted" })
+});
+
 
     if (!res.ok) throw new Error("Failed to reissue prescription");
     const data = await res.json();
@@ -634,9 +694,10 @@ async function viewPrescription(prescriptionId) {
   const detailsContainer = document.getElementById("prescription-details");
 
   try {
-    const res = await fetch(`/api/prescriptions/${prescriptionId}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const res = await fetch(`https://lunar-hmis-backend.onrender.com/api/prescriptions/${prescriptionId}`)/*, {
+  headers: //{ 'Authorization': `Bearer ${token}` }
+});*/
+
 
     if (!res.ok) throw new Error("Failed to fetch prescription");
 

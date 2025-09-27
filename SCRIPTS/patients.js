@@ -776,7 +776,7 @@ function handlePrescription(patientId) {
 // Handle billing
 function handleBilling(patientId) {
   // In a real application, this would redirect to billing page
-  window.location.href = `billing.html?patientId=${patientId}`;
+  window.location.href = `invoice.html?patientId=${patientId}`;
 }
 
 function exportCSV() {

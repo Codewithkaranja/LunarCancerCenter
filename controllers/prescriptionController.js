@@ -1,22 +1,21 @@
-import Prescription from '../models/prescriptionModel.js';
-import User from '../models/userModel.js';
-import Patient from '../models/patientModel.js';
+import Prescription from '../models/Prescription.js';
+import Patient from '../models/Patient.js';
 
 // @desc    Create a prescription (draft or submitted)
 // @route   POST /api/prescriptions
 // @access  Doctor, Admin
 export const createPrescription = async (req, res) => {
   try {
-    const { patient, medications, status, billStatus } = req.body;
+    const { patientId, items, status, billStatus } = req.body;
 
-    if (!patient || !medications || medications.length === 0) {
+    if (!patientId || !items || items.length === 0) {
       return res.status(400).json({ message: 'Patient and medications are required' });
     }
 
     const prescription = await Prescription.create({
-      patientId: patient, // assuming frontend sends patient name; ideally send patientId
-      doctorId: req.user.id,
-      items: medications.map(item => ({
+      patientId, 
+      // doctorId: req.user?.id || null, // enable when auth is active
+      items: items.map(item => ({
         medication: item.medication,
         dosage: item.dosage,
         frequency: item.frequency,
@@ -50,7 +49,8 @@ export const getAllPrescriptions = async (req, res) => {
 
     const prescriptions = await Prescription.find(filter)
       .populate('patientId', 'name')
-      .populate('doctorId', 'name');
+      // .populate('doctorId', 'name') // optional, enable with auth
+      ;
 
     res.json(prescriptions);
   } catch (error) {
@@ -65,8 +65,8 @@ export const getAllPrescriptions = async (req, res) => {
 export const getPrescriptionById = async (req, res) => {
   try {
     const prescription = await Prescription.findById(req.params.id)
-      .populate('patientId', 'name')
-      .populate('doctorId', 'name');
+      .populate('patientId', 'name');
+      // .populate('doctorId', 'name'); // optional with auth
 
     if (!prescription) return res.status(404).json({ message: 'Prescription not found' });
 
@@ -116,6 +116,7 @@ export const deletePrescription = async (req, res) => {
     const prescription = await Prescription.findById(req.params.id);
     if (!prescription) return res.status(404).json({ message: 'Prescription not found' });
 
+    // Soft delete to match frontend expectation
     prescription.status = 'cancelled';
     prescription.billStatus = 'cancelled';
     await prescription.save();
