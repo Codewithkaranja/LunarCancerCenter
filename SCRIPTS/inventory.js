@@ -3,6 +3,8 @@
 // ==========================
 
 document.addEventListener("DOMContentLoaded", function () {
+  const BASE_URL = "https://lunar-hmis-backend.onrender.com/api";
+
   const userRole = localStorage.getItem("userRole") || "pharmacist";
   const userName = localStorage.getItem("userName") || "Pharmacist John";
 
@@ -48,7 +50,7 @@ let currentSort = { column: "name", order: "asc" };
 // ==========================
 async function fetchInventory() {
   try {
-    const res = await fetch('/api/inventory');
+    const res = await fetch(`${BASE_URL}/inventory`);
     inventory = await res.json();
     renderTable();
   } catch (err) {
@@ -193,6 +195,9 @@ function generateId() {
   return 'INV-' + Date.now() + '-' + Math.floor(Math.random()*1000);
 }
 
+// ==========================
+// Save / Add Inventory Item
+// ==========================
 async function saveItem() {
   const id = document.getElementById("item-id").value;
   const name = document.getElementById("item-name").value.trim();
@@ -202,8 +207,9 @@ async function saveItem() {
   const expiry = document.getElementById("expiry-date").value || null;
   const supplier = document.getElementById("supplier-name").value || "Unknown";
 
-  if (!name || !category || !quantity || !unit) {
-    alert("Please fill all required fields");
+  // Validate required fields
+  if (!name || !category || unit === "" || quantity < 0 || isNaN(quantity)) {
+    alert("Please fill all required fields correctly. Quantity must be 0 or more.");
     return;
   }
 
@@ -214,22 +220,31 @@ async function saveItem() {
 
     if (id) {
       // Update existing item
-      res = await fetch(`/api/inventory/${id}`, {
+      res = await fetch(`${BASE_URL}/inventory/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      updatedItem = await res.json();
-      const index = inventory.findIndex(i => i.id === id);
-      if (index > -1) inventory[index] = updatedItem;
     } else {
       // Add new item
-      res = await fetch(`/api/inventory`, {
+      res = await fetch(`${BASE_URL}/inventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      updatedItem = await res.json();
+    }
+
+    if (!res.ok) {
+      const errMsg = await res.json();
+      return alert(`Failed to save item: ${errMsg.message}`);
+    }
+
+    updatedItem = await res.json();
+
+    if (id) {
+      const index = inventory.findIndex(i => i.id === id);
+      if (index > -1) inventory[index] = updatedItem;
+    } else {
       inventory.push(updatedItem);
     }
 
@@ -238,55 +253,140 @@ async function saveItem() {
 
   } catch (err) {
     console.error(err);
-    alert('Failed to save item');
+    alert('Failed to save item due to network error');
   }
 }
 
+// ==========================
+// Helper: Format date for input[type=date]
+// ==========================
+function formatDateForInput(date) {
+  const d = new Date(date);
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  const year = d.getFullYear();
+  return `${year}-${month}-${day}`;
+}
 
+// ==========================
+// Restock Item using Modal
+// ==========================
 async function restockItem(id) {
   const item = inventory.find(i => i.id === id);
-  const qty = Number(prompt(`Enter quantity to restock for ${item.name}:`));
+  if (!item) return alert('Item not found');
+
+  const restockQty = prompt(`Enter quantity to restock for ${item.name}:`);
+  const qty = Number(restockQty);
+
   if (!qty || qty <= 0) return;
 
   try {
-    const res = await fetch(`/api/inventory/${id}`, {
+    const res = await fetch(`${BASE_URL}/inventory/restock/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quantity: item.quantity + qty }) // update total quantity
+      body: JSON.stringify({ quantity: qty }) // just send the amount to add
     });
+
+    if (!res.ok) {
+      const errMsg = await res.json();
+      return alert(`Failed to restock: ${errMsg.message}`);
+    }
+
     const updated = await res.json();
     const index = inventory.findIndex(i => i.id === id);
     if (index > -1) inventory[index] = updated;
+
     renderTable();
   } catch (err) {
     console.error(err);
-    alert('Failed to restock item');
+    alert('Failed to restock item due to network error');
   }
 }
 
 
-async function disposeItem(id){
-  if(!confirm("Are you sure you want to dispose this item?")) return;
+
+
+// Dispose / Delete Item
+// ==========================
+async function disposeItem(id) {
+  if (!confirm("Are you sure you want to dispose this item?")) return;
+
   try {
-    await fetch(`/api/inventory/${id}`, { method:'DELETE' });
-    inventory = inventory.filter(i=>i.id!==id);
+    const res = await fetch(`${BASE_URL}/inventory/${id}`, { method: 'DELETE' });
+
+    if (!res.ok) {
+      const errMsg = await res.json();
+      alert(`Failed to delete item: ${errMsg.message}`);
+      return;
+    }
+
+    // Remove from local array and refresh table
+    inventory = inventory.filter(i => i.id !== id);
     renderTable();
-  } catch(err) { console.error(err); alert('Failed to delete item'); }
+
+  } catch (err) {
+    console.error(err);
+    alert('Failed to delete item due to network error');
+  }
 }
 
-function viewItem(id){
-  const item = inventory.find(i=>i.id===id);
-  alert(`${item.name}\nCategory: ${capitalize(item.category)}\nQuantity: ${item.quantity}\nUnit: ${item.unit}\nExpiry: ${item.expiry?formatDate(item.expiry):"N/A"}\nSupplier: ${item.supplier}\nStatus: ${capitalizeStatus(item.status)}`);
-}
-
-function editItem(id) {
+// ==========================
+// View Item in Modal
+// ==========================
+function viewItem(id) {
   const item = inventory.find(i => i.id === id);
+
+  if (!item) {
+    alert('Item not found');
+    return;
+  }
+
+  // Populate modal fields
   document.getElementById("item-id").value = item.id;
   document.getElementById("item-name").value = item.name;
   document.getElementById("category").value = item.category;
   document.getElementById("quantity").value = item.quantity;
   document.getElementById("unit").value = item.unit;
   document.getElementById("expiry-date").value = item.expiry || "";
+  document.getElementById("supplier-name").value = item.supplier || "";
+
+  // Disable inputs for view-only
+  ["item-name", "category", "quantity", "unit", "expiry-date", "supplier-name"].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+
+  // Hide Save button
+  document.getElementById("save-btn").style.display = "none";
+
+  openModal();
+}
+
+// ==========================
+// Close Modal (reset view)
+// ==========================
+function closeModal() {
+  document.getElementById("inventoryModal").style.display = "none";
+
+  // Re-enable inputs and show Save button for next use
+  ["item-name", "category", "quantity", "unit", "expiry-date", "supplier-name"].forEach(id => {
+    document.getElementById(id).disabled = false;
+  });
+  document.getElementById("save-btn").style.display = "inline-block";
+}
+
+// ==========================
+// Edit Inventory Item
+// ==========================
+function editItem(id) {
+  const item = inventory.find(i => i.id === id);
+  if (!item) return;
+
+  document.getElementById("item-id").value = item.id;
+  document.getElementById("item-name").value = item.name;
+  document.getElementById("category").value = item.category;
+  document.getElementById("quantity").value = item.quantity;
+  document.getElementById("unit").value = item.unit;
+  document.getElementById("expiry-date").value = item.expiry ? formatDateForInput(item.expiry) : "";
   document.getElementById("supplier-name").value = item.supplier || "";
   openModal();
 }

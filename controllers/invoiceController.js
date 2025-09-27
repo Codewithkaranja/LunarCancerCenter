@@ -2,18 +2,17 @@ import Invoice from "../models/Invoice.js";
 import { Parser as Json2CsvParser } from "json2csv";
 import PDFDocument from "pdfkit";
 
-
 // ===============================
-// @desc   Get all invoices
-// @route  GET /api/billing
-// @access Cashier, Admin
+// Get all invoices
 // ===============================
 export const getInvoices = async (req, res) => {
   try {
     const invoices = await Invoice.find()
-      .populate("patientId", "name patientId phone")
-      .populate("createdBy", "name role email")
-      .lean({ virtuals: true }); // include subtotal, tax, total
+      .populate([
+        { path: "patientId", select: "firstName lastName phone" },
+        { path: "createdBy", select: "name role email" },
+      ])
+      .lean({ virtuals: true });
 
     res.json(invoices);
   } catch (err) {
@@ -22,39 +21,41 @@ export const getInvoices = async (req, res) => {
 };
 
 // ===============================
-// @desc   Create invoice
-// @route  POST /api/billing
-// @access Cashier, Admin
+// Create a new invoice
 // ===============================
 export const createInvoice = async (req, res) => {
   try {
     const invoice = new Invoice(req.body);
     await invoice.save();
-    const populated = await invoice
-      .populate("patientId", "name patientId phone")
-      .populate("createdBy", "name role email");
-    res.status(201).json(populated.toJSON({ virtuals: true }));
+
+    // Populate single document safely (do NOT use lean here)
+    await invoice.populate([
+      { path: "patientId", select: "firstName lastName phone" },
+      { path: "createdBy", select: "name role email" },
+    ]);
+
+    res.status(201).json(invoice.toJSON({ virtuals: true }));
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
 
 // ===============================
-// @desc   Update invoice
-// @route  PUT /api/billing/:id
-// @access Cashier, Admin
+// Update invoice by ID
 // ===============================
 export const updateInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    )
-      .populate("patientId", "name patientId phone")
-      .populate("createdBy", "name role email");
-
+    const invoice = await Invoice.findById(req.params.id);
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    Object.assign(invoice, req.body);
+    await invoice.save();
+
+    await invoice.populate([
+      { path: "patientId", select: "firstName lastName phone" },
+      { path: "createdBy", select: "name role email" },
+    ]);
+
     res.json(invoice.toJSON({ virtuals: true }));
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -62,14 +63,13 @@ export const updateInvoice = async (req, res) => {
 };
 
 // ===============================
-// @desc   Delete invoice
-// @route  DELETE /api/billing/:id
-// @access Admin
+// Delete invoice
 // ===============================
 export const deleteInvoice = async (req, res) => {
   try {
     const deleted = await Invoice.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Invoice not found" });
+
     res.json({ message: "Invoice deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -77,23 +77,43 @@ export const deleteInvoice = async (req, res) => {
 };
 
 // ===============================
-// @desc   Export invoices as CSV
-// @route  GET /api/billing/export/csv
-// @access Cashier, Admin
+// Get invoice by ID
+// ===============================
+export const getInvoiceById = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    await invoice.populate([
+      { path: "patientId", select: "firstName lastName phone" },
+      { path: "createdBy", select: "name role email" },
+    ]);
+
+    res.json(invoice.toJSON({ virtuals: true }));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ===============================
+// Export invoices as CSV
 // ===============================
 export const exportInvoicesCSV = async (req, res) => {
   try {
     const invoices = await Invoice.find()
-      .populate("patientId", "name patientId phone")
-      .populate("createdBy", "name role email")
+      .populate([
+        { path: "patientId", select: "firstName lastName phone" },
+        { path: "createdBy", select: "name role email" },
+      ])
       .lean({ virtuals: true });
 
-    if (!invoices.length) return res.status(404).json({ message: "No invoices found" });
+    if (!invoices.length)
+      return res.status(404).json({ message: "No invoices found" });
 
     const data = invoices.map(inv => ({
       invoiceNumber: inv.invoiceNumber,
       patientName: inv.patientName,
-      patientId: inv.patientId?.patientId || "",
+      patientId: inv.patientId?._id || "",
       phone: inv.patientId?.phone || "",
       status: inv.status,
       discount: inv.discount,
@@ -110,72 +130,36 @@ export const exportInvoicesCSV = async (req, res) => {
 
     res.header("Content-Type", "text/csv");
     res.attachment("invoices.csv");
-    return res.send(csv);
+    res.send(csv);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
 // ===============================
-// @desc   Export invoices as PDF
-// @route  GET /api/billing/export/pdf
-// @access Cashier, Admin
-// ===============================
-// ===============================
-// @desc   Get invoice by ID
-// @route  GET /api/billing/:id
-// @access Cashier, Admin
-// ===============================
-// ===============================
-// @desc   Get invoice by ID
-// @route  GET /api/billing/:id
-// @access Cashier, Admin
-// ===============================
-export const getInvoiceById = async (req, res) => {
-  try {
-    const invoice = await Invoice.findById(req.params.id)
-      .populate("patientId", "name patientId phone")
-      .populate("createdBy", "name role email")
-      .lean({ virtuals: true });
-
-    if (!invoice) {
-      return res.status(404).json({ message: "Invoice not found" });
-    }
-
-    res.json(invoice);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-
-   // ===============================
-// @desc   Export invoices as PDF
-// @route  GET /api/billing/export/pdf
-// @access Cashier, Admin
+// Export invoices as PDF
 // ===============================
 export const exportInvoicesPDF = async (req, res) => {
   try {
     const invoices = await Invoice.find()
-      .populate("patientId", "name patientId phone")
-      .populate("createdBy", "name role email")
+      .populate([
+        { path: "patientId", select: "firstName lastName phone" },
+        { path: "createdBy", select: "name role email" },
+      ])
       .lean({ virtuals: true });
 
-    if (!invoices.length) {
+    if (!invoices.length)
       return res.status(404).json({ message: "No invoices found" });
-    }
 
     const doc = new PDFDocument({ margin: 30, size: "A4" });
     res.setHeader("Content-Disposition", "attachment; filename=invoices.pdf");
     res.setHeader("Content-Type", "application/pdf");
     doc.pipe(res);
 
-    doc.fontSize(18).text("Invoice Report", { align: "center" }).moveDown();
-
     invoices.forEach((inv, idx) => {
       doc.fontSize(12)
         .text(`Invoice #: ${inv.invoiceNumber}`)
-        .text(`Patient: ${inv.patientName} (${inv.patientId?.patientId || ""})`)
+        .text(`Patient: ${inv.patientName} (${inv.patientId?._id || ""})`)
         .text(`Phone: ${inv.patientId?.phone || ""}`)
         .text(`Status: ${inv.status}`)
         .text(`Discount: ${inv.discount}`)
@@ -183,14 +167,10 @@ export const exportInvoicesPDF = async (req, res) => {
         .text(`Tax: ${inv.tax}`)
         .text(`Total: ${inv.total}`)
         .text(`Created By: ${inv.createdBy?.name || ""}`)
-        .text(
-          `Date: ${new Date(inv.date).toLocaleDateString()} | Due: ${
-            inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : ""
-          }`
-        )
+        .text(`Date: ${new Date(inv.date).toLocaleDateString()} | Due: ${inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : ""}`)
         .text("Services:");
 
-      inv.services.forEach((s) => {
+      inv.services.forEach(s => {
         doc.text(` - ${s.service}: ${s.qty} x ${s.unitPrice} = ${s.qty * s.unitPrice}`);
       });
 

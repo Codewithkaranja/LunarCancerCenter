@@ -1,26 +1,21 @@
-import Inventory from '../models/inventoryModel.js';
+import Inventory from "../models/Inventory.js";
 
-// ==========================
-// Utility: Calculate status dynamically
-// ==========================
+// Utility: calculate status
 const calculateStatus = (item) => {
   const today = new Date();
-  if (item.quantity === 0) return 'out';
-  if (item.reorderLevel && item.quantity < item.reorderLevel) return 'low';
-  if (item.expiry && new Date(item.expiry) < today) return 'expired';
-  return 'instock';
+  if (item.quantity === 0) return "out";
+  if (item.expiry && new Date(item.expiry) < today) return "expired";
+  if (item.reorderLevel && item.quantity < item.reorderLevel) return "low";
+  return "instock";
 };
 
 // ==========================
-// GET All Inventory
+// GET all inventory
 // ==========================
 export const getAllInventory = async (req, res) => {
   try {
     const items = await Inventory.find();
-    const data = items.map(item => ({
-      ...item.toObject(),
-      status: calculateStatus(item),
-    }));
+    const data = items.map((item) => ({ ...item.toObject(), status: calculateStatus(item) }));
     res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -28,12 +23,12 @@ export const getAllInventory = async (req, res) => {
 };
 
 // ==========================
-// GET One Inventory Item
+// GET inventory item by ID
 // ==========================
 export const getInventoryById = async (req, res) => {
   try {
     const item = await Inventory.findOne({ id: req.params.id });
-    if (!item) return res.status(404).json({ message: 'Item not found' });
+    if (!item) return res.status(404).json({ message: "Item not found" });
     res.json({ ...item.toObject(), status: calculateStatus(item) });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -41,20 +36,23 @@ export const getInventoryById = async (req, res) => {
 };
 
 // ==========================
-// POST Add New Inventory Item
+// POST: add new inventory item
 // ==========================
 export const addInventoryItem = async (req, res) => {
   try {
-    const { status, ...itemBody } = req.body; // ignore any frontend status
-    const itemData = {
-      ...itemBody,
-      status: calculateStatus(req.body),
+    const { id, name, category, quantity, unit, expiry, supplier } = req.body;
+    const newItemData = {
+      id: id || `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name,
+      category,
+      quantity: Number(quantity) || 0,
+      unit,
+      expiry: expiry || null,
+      supplier: supplier || "Unknown",
     };
+    newItemData.status = calculateStatus(newItemData);
 
-    // Auto-generate ID if not provided
-    if (!itemData.id) itemData.id = `INV-${Date.now()}-${Math.floor(Math.random()*1000)}`;
-
-    const newItem = new Inventory(itemData);
+    const newItem = new Inventory(newItemData);
     await newItem.save();
     res.status(201).json(newItem);
   } catch (err) {
@@ -63,27 +61,27 @@ export const addInventoryItem = async (req, res) => {
 };
 
 // ==========================
-// PUT Update / Restock Inventory Item
+// PUT: update inventory item
 // ==========================
 export const updateInventoryItem = async (req, res) => {
   try {
-    const { quantity, ...otherFields } = req.body;
     const item = await Inventory.findOne({ id: req.params.id });
-    if (!item) return res.status(404).json({ message: 'Item not found' });
+    if (!item) return res.status(404).json({ message: "Item not found" });
 
-    // Update all provided fields
-    Object.assign(item, otherFields);
+    const { name, category, quantity, unit, expiry, supplier } = req.body;
 
-    // Restock logic if quantity is provided
+    if (name !== undefined) item.name = name;
+    if (category !== undefined) item.category = category;
+    if (unit !== undefined) item.unit = unit;
+    if (expiry !== undefined) item.expiry = expiry || null;
+    if (supplier !== undefined) item.supplier = supplier || "Unknown";
     if (quantity !== undefined) {
       const qty = Number(quantity);
-      if (isNaN(qty) || qty < 0) return res.status(400).json({ message: 'Quantity must be a non-negative number' });
+      if (isNaN(qty) || qty < 0) return res.status(400).json({ message: "Quantity must be non-negative" });
       item.quantity = qty;
     }
 
-    // Recalculate status
     item.status = calculateStatus(item);
-
     await item.save();
     res.json(item);
   } catch (err) {
@@ -92,14 +90,36 @@ export const updateInventoryItem = async (req, res) => {
 };
 
 // ==========================
-// DELETE Inventory Item
+// DELETE: remove inventory item
 // ==========================
 export const deleteInventoryItem = async (req, res) => {
   try {
     const deleted = await Inventory.findOneAndDelete({ id: req.params.id });
-    if (!deleted) return res.status(404).json({ message: 'Item not found' });
-    res.json({ message: 'Item deleted' });
+    if (!deleted) return res.status(404).json({ message: "Item not found" });
+    res.json({ message: "Item deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+// ==========================
+// PUT: restock inventory item
+// ==========================
+export const restockInventoryItem = async (req, res) => {
+  try {
+    const item = await Inventory.findOne({ id: req.params.id });
+    if (!item) return res.status(404).json({ message: "Item not found" });
+
+    const { quantity } = req.body; // frontend sends quantity to add
+    const qty = Number(quantity);
+    if (isNaN(qty) || qty <= 0) return res.status(400).json({ message: "Invalid quantity" });
+
+    item.quantity += qty;
+    item.status = calculateStatus(item);
+    await item.save();
+
+    res.json(item);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };

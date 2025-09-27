@@ -8,22 +8,21 @@ import {
   exportInvoicesCSV, 
   exportInvoicesPDF 
 } from '../controllers/invoiceController.js';
-import { protect, authorize } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// CRUD Routes with dummy auth
+// ======= Test CRUD routes without auth =======
 router.route("/")
-  .get(protect, authorize("admin", "cashier"), getInvoices)
-  .post(protect, authorize("admin", "cashier"), createInvoice);
+  .get(getInvoices)         // Get all invoices
+  .post(createInvoice);     // Create invoice
 
 router.route("/:id")
-  .get(protect, authorize("admin", "cashier"), getInvoiceById)
-  .put(protect, authorize("admin", "cashier"), updateInvoice)
-  .delete(protect, authorize("admin"), deleteInvoice);
+  .get(getInvoiceById)      // Get invoice by ID
+  .put(updateInvoice)       // Update invoice
+  .delete(deleteInvoice);   // Delete invoice
 
-// Export
-router.get("/export/csv", protect, authorize("admin", "cashier"), exportInvoicesCSV);
-router.get("/export/pdf", protect, authorize("admin", "cashier"), exportInvoicesPDF);
+// Export (optional, for testing)
+router.get("/export/csv", exportInvoicesCSV);
+router.get("/export/pdf", exportInvoicesPDF);
 
 export default router;

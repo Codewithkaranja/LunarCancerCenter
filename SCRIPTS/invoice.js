@@ -1,5 +1,5 @@
 // ===========================
-// billing-upgraded.js (Connected to Backend)
+// billing-upgraded.js (Backend-consistent)
 // ===========================
 
 const API_URL = "https://lunar-hmis-backend.onrender.com/api/billing";
@@ -7,31 +7,23 @@ let invoices = [];
 let currentInvoice = null;
 
 document.addEventListener("DOMContentLoaded", async function () {
-  // Get user role from localStorage (set during login)
   const userRole = localStorage.getItem("userRole") || "cashier";
   const userName = localStorage.getItem("userName") || "Cashier Mary";
 
-  // Update user info in header
   document.querySelector(".user-details h3").textContent = userName;
   document.querySelector(".user-details p").textContent =
-    userRole.charAt(0).toUpperCase() + userRole.slice(1) + " / Finance Staff";
+    `${userRole.charAt(0).toUpperCase() + userRole.slice(1)} / Finance Staff`;
 
-  // Load invoices from backend
   await fetchInvoices();
 
-  // Payment action buttons
-  document.querySelectorAll(".action-card").forEach((card) => {
+  document.querySelectorAll(".action-card").forEach(card => {
     card.addEventListener("click", async () => {
       const action = card.querySelector("h3").textContent.toLowerCase();
       switch (action) {
         case "mark as paid":
-          currentInvoice.status = "paid";
-          await updateInvoice(currentInvoice._id, { status: "paid" });
-          renderInvoice();
-          break;
         case "mark as unpaid":
-          currentInvoice.status = "unpaid";
-          await updateInvoice(currentInvoice._id, { status: "unpaid" });
+          currentInvoice.status = action.includes("paid") ? "paid" : "unpaid";
+          currentInvoice = await updateInvoice(currentInvoice._id, { status: currentInvoice.status });
           renderInvoice();
           break;
         case "add service":
@@ -50,21 +42,21 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   });
 
-  // Export / Print buttons
   document.querySelector(".btn-success")?.addEventListener("click", exportCSV);
   document.querySelector(".btn-warning")?.addEventListener("click", exportPDF);
-  document.querySelectorAll(".invoice-actions .btn").forEach(btn => {
-    btn.addEventListener("click", exportPDF);
-  });
+  document.querySelectorAll(".invoice-actions .btn").forEach(btn => btn.addEventListener("click", exportPDF));
 
-  // Search
+  // =========================== Search
   document.querySelector(".search-btn")?.addEventListener("click", () => {
     const idSearch = document.getElementById("patient-id").value.toLowerCase();
     const nameSearch = document.getElementById("patient-name").value.toLowerCase();
-    const found = invoices.find(inv =>
-      inv.patientId.toLowerCase().includes(idSearch) &&
-      inv.patientName.toLowerCase().includes(nameSearch)
-    );
+
+    const found = invoices.find(inv => {
+      const patientIdStr = inv.patientId?.patientId?.toLowerCase() || "";
+      const patientNameStr = inv.patientName?.toLowerCase() || "";
+      return patientIdStr.includes(idSearch) && patientNameStr.includes(nameSearch);
+    });
+
     if (found) {
       currentInvoice = found;
       renderInvoice();
@@ -74,15 +66,15 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   });
 
-  // New Invoice
+  // =========================== New Invoice
   document.querySelector(".btn-primary")?.addEventListener("click", async () => {
     const patientName = prompt("Enter Patient Name:");
-    const patientId = prompt("Enter Patient ID:");
-    if (!patientName || !patientId) return alert("Patient info required!");
+    const patientIdInput = prompt("Enter Patient ID:");
+    if (!patientName || !patientIdInput) return alert("Patient info required!");
 
     const newInvoice = {
       patientName,
-      patientId,
+      patientId: patientIdInput,
       date: new Date(),
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       status: "unpaid",
@@ -96,16 +88,19 @@ document.addEventListener("DOMContentLoaded", async function () {
       body: JSON.stringify(newInvoice)
     });
     const saved = await res.json();
-    invoices.push(saved);
-    currentInvoice = saved;
+
+    // Fetch full invoice with populated patientId
+    const fullInvoiceRes = await fetch(`${API_URL}/${saved._id}`);
+    const fullInvoice = await fullInvoiceRes.json();
+
+    invoices.push(fullInvoice);
+    currentInvoice = fullInvoice;
     renderInvoice();
     alert("New invoice created for " + patientName);
   });
 });
 
-// ===========================
-// Backend Functions
-// ===========================
+// =========================== Backend Functions
 async function fetchInvoices() {
   try {
     const res = await fetch(API_URL);
@@ -122,9 +117,18 @@ async function updateInvoice(id, updates) {
     const res = await fetch(`${API_URL}/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
+      body: JSON.stringify(updates)
     });
-    return await res.json();
+    const updated = await res.json();
+
+    // Fetch fully populated invoice after update
+    const fullInvoiceRes = await fetch(`${API_URL}/${updated._id}`);
+    const fullInvoice = await fullInvoiceRes.json();
+
+    const idx = invoices.findIndex(inv => inv._id === id);
+    if (idx >= 0) invoices[idx] = fullInvoice;
+
+    return fullInvoice;
   } catch (err) {
     console.error("Error updating invoice:", err);
   }
@@ -141,13 +145,11 @@ async function deleteInvoice(id) {
   }
 }
 
-// ===========================
-// Render Invoice (Unified)
-// ===========================
+// =========================== Render Invoice
 function renderInvoice() {
   if (!currentInvoice) return;
 
-  // --- Main Billing Table ---
+  // Main billing table
   const tbody = document.querySelector(".billing-table tbody");
   if (tbody) {
     tbody.innerHTML = "";
@@ -170,7 +172,7 @@ function renderInvoice() {
     });
   }
 
-  // --- Invoice Preview Table ---
+  // Invoice preview table
   const tbodyInvoice = document.querySelector(".invoice-billing-table tbody");
   if (tbodyInvoice) {
     tbodyInvoice.innerHTML = currentInvoice.services.map(s => `
@@ -185,7 +187,6 @@ function renderInvoice() {
     `).join("");
   }
 
-  // --- Totals ---
   const totals = calculateTotals(currentInvoice);
   const summaryCards = document.querySelectorAll(".billing-summary .summary-card p");
   if (summaryCards.length >= 4) {
@@ -204,7 +205,6 @@ function renderInvoice() {
     `;
   }
 
-  // --- Payment Status ---
   const statusEl = document.querySelector(".payment-status");
   if (statusEl) {
     statusEl.textContent = currentInvoice.status === "paid" ? "Paid" : "Unpaid";
@@ -212,9 +212,7 @@ function renderInvoice() {
   }
 }
 
-// ===========================
-// Calculate Totals
-// ===========================
+// =========================== Calculate Totals
 function calculateTotals(invoice) {
   const subtotal = invoice.services.reduce((acc, s) => acc + s.qty * s.unitPrice, 0);
   const tax = Math.round(subtotal * 0.16);
@@ -222,9 +220,7 @@ function calculateTotals(invoice) {
   return { subtotal, tax, total };
 }
 
-// ===========================
-// Event Delegation for Edit/Delete
-// ===========================
+// =========================== Edit/Delete Events
 document.querySelector(".billing-table tbody")?.addEventListener("click", async e => {
   const row = e.target.closest("tr");
   if (!row) return;
@@ -233,7 +229,7 @@ document.querySelector(".billing-table tbody")?.addEventListener("click", async 
   if (e.target.closest(".btn-delete")) {
     if (confirm("Are you sure you want to delete this service?")) {
       currentInvoice.services.splice(index, 1);
-      await updateInvoice(currentInvoice._id, { services: currentInvoice.services });
+      currentInvoice = await updateInvoice(currentInvoice._id, { services: currentInvoice.services });
       renderInvoice();
     }
   }
@@ -243,14 +239,12 @@ document.querySelector(".billing-table tbody")?.addEventListener("click", async 
   }
 });
 
-// ===========================
-// Service / Discount Modals
-// ===========================
+// =========================== Service / Discount Modals
 async function openServiceModal(service = null, index = null) {
-  const serviceName = service ? service.service : "";
-  const desc = service ? service.desc : "";
-  const qty = service ? service.qty : 1;
-  const price = service ? service.unitPrice : 1000;
+  const serviceName = service?.service || "";
+  const desc = service?.desc || "";
+  const qty = service?.qty || 1;
+  const price = service?.unitPrice || 1000;
 
   const newService = prompt(`Enter Service Name:`, serviceName);
   if (!newService) return;
@@ -272,7 +266,7 @@ async function openServiceModal(service = null, index = null) {
     currentInvoice.services.push(serviceObj);
   }
 
-  await updateInvoice(currentInvoice._id, { services: currentInvoice.services });
+  currentInvoice = await updateInvoice(currentInvoice._id, { services: currentInvoice.services });
   renderInvoice();
 }
 
@@ -280,24 +274,16 @@ async function openDiscountModal() {
   const discount = parseFloat(prompt("Enter discount amount:", currentInvoice.discount || 0));
   if (!isNaN(discount)) {
     currentInvoice.discount = discount;
-    await updateInvoice(currentInvoice._id, { discount });
+    currentInvoice = await updateInvoice(currentInvoice._id, { discount });
     renderInvoice();
   }
 }
 
-// ===========================
-// ===========================
-// Export CSV (Backend)
-// ===========================
+// =========================== Export CSV
 async function exportCSV() {
   try {
-    const token = localStorage.getItem("token"); // assuming JWT stored in localStorage
-    const res = await fetch(`${API_URL}/export/csv`, {
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_URL}/export/csv`, { headers: { "Authorization": `Bearer ${token}` } });
     if (!res.ok) throw new Error("Failed to export CSV");
 
     const blob = await res.blob();
@@ -311,37 +297,19 @@ async function exportCSV() {
   }
 }
 
-
-// ===========================
-// Export PDF (from backend)
-// ===========================
+// =========================== Export PDF
 async function exportPDF() {
   try {
-    // Confirm we have an invoice selected
     if (!currentInvoice || !currentInvoice._id) return alert("No invoice selected!");
-
-    // Call backend PDF export endpoint for this invoice
-    // If you want bulk export, you can use /export/pdf route instead
-    const res = await fetch(`https://lunar-hmis-backend.onrender.com/api/billing/export/pdf`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${localStorage.getItem("token")}` // if using auth
-      }
-    });
-
+    const res = await fetch(`${API_URL}/export/pdf`, { headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
     if (!res.ok) throw new Error("Failed to generate PDF");
 
-    const blob = await res.blob(); // get PDF as blob
-    const url = URL.createObjectURL(blob);
-
-    // Create a temporary link and trigger download
+    const blob = await res.blob();
     const link = document.createElement("a");
-    link.href = url;
-    link.download = `invoice_${currentInvoice._id || "invoice"}.pdf`;
+    link.href = URL.createObjectURL(blob);
+    link.download = `invoice_${currentInvoice._id}.pdf`;
     link.click();
-
-    // Clean up
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(link.href);
   } catch (err) {
     console.error("Error exporting PDF:", err);
     alert("Failed to export PDF. Check console for details.");

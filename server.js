@@ -6,8 +6,9 @@ import cors from 'cors';
 import appointmentRoutes from './routes/appointmentRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
 import patientRoutes from './routes/patientsRoutes.js';
-import invoiceRoutes from './routes/invoiceRoutes.js'; // ✅ added
+import invoiceRoutes from './routes/invoiceRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+import inventoryRoutes from './routes/inventoryRoutes.js'; // create this file
 
 // Load environment variables
 dotenv.config();
@@ -24,11 +25,12 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/billing', invoiceRoutes); // ✅ MOUNT INVOICE ROUTES
+app.use('/api/inventory', inventoryRoutes);
 
 // Test route
 app.get('/', (req, res) => res.send('Backend is running!'));
 
-// Error handling middleware (should be after routes)
+// Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
 
