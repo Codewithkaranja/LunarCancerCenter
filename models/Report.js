@@ -11,18 +11,17 @@ const reportSchema = new mongoose.Schema(
     },
     dateRange: { type: String }, // e.g., "1 Nov - 30 Nov 2025"
 
-    // Who generated the report
+    // Who generated the report (temporarily optional for testing)
     author: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      ref: "Staff", // make sure this matches your Staff model
+      required: false, // optional for now
     },
 
     // Snapshots of key data at generation time (frozen copy for UX)
     snapshot: {
       summary: { type: Object }, // e.g., totals, counts, etc.
-     details: { type: [mongoose.Schema.Types.Mixed], default: [] }
-, // optional: store rows of data
+      details: { type: [mongoose.Schema.Types.Mixed], default: [] },
     },
 
     // References to live data (optional)
