@@ -1,8 +1,13 @@
+// models/Prescription.js
 import mongoose from 'mongoose';
 
 const prescriptionItemSchema = new mongoose.Schema(
   {
-    medication: { type: String, required: true },
+    medication: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Inventory',   // 👈 linked to Inventory model
+      required: true,
+    },
     dosage: { type: String },
     frequency: { type: String },
     duration: { type: String },
@@ -22,7 +27,7 @@ const prescriptionSchema = new mongoose.Schema(
     doctorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: false,
+      required: false, // keep false since auth is off
     },
     items: [prescriptionItemSchema],
     status: {

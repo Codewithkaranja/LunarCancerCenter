@@ -8,9 +8,19 @@ import staffRoutes from './routes/staffRoutes.js';
 import patientRoutes from './routes/patientsRoutes.js';
 import invoiceRoutes from './routes/invoiceRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
-import prescriptionRoutes from './routes/prescriptionRoutes.js'; // ✅ add this
+import prescriptionRoutes from './routes/prescriptionRoutes.js';
+import reportRoutes from './routes/reportRoutes.js'; // ✅ add report routes
 
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+// ==========================
+// Reports API Endpoints
+// ==========================
+// GET    /api/reports             -> fetch list of reports (with filters/pagination)
+// GET    /api/reports/:id         -> fetch single report by ID
+// POST   /api/reports             -> generate a new report (admin/cashier only)
+// GET    /api/reports/export      -> export all reports as CSV (admin/cashier only)
+// GET    /api/reports/:id/export  -> export single report as CSV (admin/cashier only)
+// ==========================
 
 // Load environment variables
 dotenv.config();
@@ -28,7 +38,8 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/billing', invoiceRoutes);
 app.use('/api/inventory', inventoryRoutes);
-app.use('/api/prescriptions', prescriptionRoutes); // ✅ mount prescription routes
+app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/reports', reportRoutes); // ✅ mount report routes
 
 // Test route
 app.get('/', (req, res) => res.send('Backend is running!'));

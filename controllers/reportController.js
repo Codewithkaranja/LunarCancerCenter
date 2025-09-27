@@ -1,86 +1,211 @@
 // controllers/reportController.js
-const Report = require('../models/Report.js');
-const { Parser } = require('json2csv'); // for export CSV
+import Report from "../models/Report.js";
+import Invoice from "../models/Invoice.js";
+import Patient from "../models/Patient.js";
+import User from "../models/Staff.js";
+import { Parser as Json2CsvParser } from "json2csv";
 
-// Fetch reports with filters, sorting, pagination
-exports.getReports = async (req, res) => {
+// @desc   Fetch reports with filters, sorting, pagination
+// @route  GET /api/reports
+export const getReports = async (req, res) => {
   try {
     const {
       category,
       dateRange,
-      department,
-      staffMember,
-      sortField = 'generatedAt',
-      sortDirection = 'desc',
+      author,
+      sortField = "generatedAt",
+      sortDirection = "desc",
       page = 1,
-      limit = 5,
+      limit = 10,
     } = req.query;
 
     const query = {};
     if (category) query.type = category;
-
-    // Optional: Filter by dateRange string or author/department if needed
-    if (dateRange) query.dateRange = { $regex: dateRange, $options: 'i' };
-    if (staffMember) query.author = { $regex: staffMember, $options: 'i' };
-    if (department) query.department = { $regex: department, $options: 'i' };
+    if (dateRange) query.dateRange = { $regex: dateRange, $options: "i" };
+    if (author) query.author = author;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const reports = await Report.find(query)
-      .sort({ [sortField]: sortDirection === 'asc' ? 1 : -1 })
+      .populate("author", "name email role")
+      .sort({ [sortField]: sortDirection === "asc" ? 1 : -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
     const totalCount = await Report.countDocuments(query);
 
-    res.json({ reports, totalCount });
+    const formattedReports = reports.map(r => ({
+      id: r._id.toString(),
+      name: r.name,
+      type: r.type,
+      dateRange: r.dateRange,
+      generatedAt: r.generatedAt,
+      author: r.author?.name || "Unknown",
+      snapshot: r.snapshot,
+      relatedRecords: r.relatedRecords,
+    }));
+
+    res.json({ reports: formattedReports, totalCount });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server Error' });
+    console.error("❌ getReports error:", err);
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
-// Generate new report
-exports.generateReport = async (req, res) => {
+// @desc   Generate new report
+// @route  POST /api/reports
+export const generateReport = async (req, res) => {
   try {
-    const { name, type, dateRange, format } = req.body;
+    const { name, type, dateRange } = req.body;
 
-    const newReport = new Report({
+    if (!name || !type) return res.status(400).json({ message: "Name and type are required" });
+
+    let snapshot = { summary: {}, details: [] };
+
+    if (type === "billing") {
+      const invoices = await Invoice.find().populate("patientId", "name");
+      const total = invoices.reduce((s, i) => s + i.amount, 0);
+      const paid = invoices.filter(i => i.status === "paid").reduce((s, i) => s + i.amount, 0);
+
+      snapshot.summary = { totalInvoices: invoices.length, total, paid, pending: total - paid };
+      snapshot.details = invoices.map(i => ({
+        id: i._id.toString(),
+        patient: i.patientId?.name || "Unknown",
+        amount: i.amount,
+        status: i.status,
+      }));
+    }
+
+    if (type === "patient") {
+      const patients = await Patient.find();
+      snapshot.summary = { totalPatients: patients.length };
+      snapshot.details = patients.map(p => ({ id: p._id.toString(), name: p.name, age: p.age }));
+    }
+
+    if (type === "staff") {
+      const users = await User.find();
+      snapshot.summary = { totalStaff: users.length };
+      snapshot.details = users.map(u => ({ id: u._id.toString(), name: u.name, role: u.role }));
+    }
+
+    const report = await Report.create({
       name,
       type,
       dateRange,
-      author: req.user?.name || 'Admin User', // assuming JWT auth
+      author: req.user._id,
+      snapshot,
     });
 
-    await newReport.save();
+    await report.populate("author", "name email role");
 
-    res.status(201).json(newReport);
+    const obj = report.toObject();
+    res.status(201).json({
+      id: obj._id.toString(),
+      name: obj.name,
+      type: obj.type,
+      dateRange: obj.dateRange,
+      generatedAt: obj.generatedAt,
+      author: obj.author?.name || "Unknown",
+      snapshot: obj.snapshot,
+      relatedRecords: obj.relatedRecords,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Failed to generate report' });
+    console.error("❌ generateReport error:", err);
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
-// Export reports as CSV
-exports.exportReports = async (req, res) => {
+// @desc   Export all reports as CSV
+// @route  GET /api/reports/export
+export const exportReports = async (req, res) => {
   try {
-    const { category, dateRange, department } = req.query;
+    const { category, dateRange } = req.query;
     const query = {};
     if (category) query.type = category;
-    if (dateRange) query.dateRange = { $regex: dateRange, $options: 'i' };
-    if (department) query.department = { $regex: department, $options: 'i' };
+    if (dateRange) query.dateRange = { $regex: dateRange, $options: "i" };
 
-    const reports = await Report.find(query);
+    const reports = await Report.find(query).populate("author", "name email");
+    const normalizedReports = reports.map(r => ({
+      id: r._id.toString(),
+      name: r.name,
+      type: r.type,
+      dateRange: r.dateRange,
+      generatedAt: r.generatedAt,
+      author: r.author?.name || "Unknown",
+    }));
 
-    const fields = ['name', 'type', 'dateRange', 'author', 'generatedAt'];
-    const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(reports);
+    const fields = ["id", "name", "type", "dateRange", "author", "generatedAt"];
+    const parser = new Json2CsvParser({ fields });
+    const csv = parser.parse(normalizedReports);
 
-    res.header('Content-Type', 'text/csv');
-    res.attachment(`${category || 'reports'}_${new Date().toISOString().slice(0,10)}.csv`);
-    return res.send(csv);
+    res.header("Content-Type", "text/csv");
+    res.attachment(`${category || "reports"}_${new Date().toISOString().slice(0, 10)}.csv`);
+    res.send(csv);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Failed to export reports' });
+    console.error("❌ exportReports error:", err);
+    res.status(500).json({ message: "Failed to export reports" });
+  }
+};
+
+// @desc   Get a single report
+// @route  GET /api/reports/:id
+export const getReportById = async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id).populate("author", "name email role");
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    const obj = report.toObject();
+    res.json({
+      id: obj._id.toString(),
+      name: obj.name,
+      type: obj.type,
+      dateRange: obj.dateRange,
+      generatedAt: obj.generatedAt,
+      author: obj.author?.name || "Unknown",
+      snapshot: obj.snapshot,
+      relatedRecords: obj.relatedRecords,
+    });
+  } catch (err) {
+    console.error("❌ getReportById error:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// @desc   Export a single report as CSV
+// @route  GET /api/reports/:id/export
+export const exportReportById = async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id).populate("author", "name email");
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    const meta = {
+      id: report._id.toString(),
+      name: report.name,
+      type: report.type,
+      dateRange: report.dateRange || "N/A",
+      generatedAt: report.generatedAt.toISOString(),
+      author: report.author?.name || "Unknown",
+    };
+
+    const summaryCsv = report.snapshot?.summary
+      ? new Json2CsvParser({ fields: Object.keys(report.snapshot.summary) }).parse([report.snapshot.summary])
+      : "No summary available";
+
+    const detailsCsv = Array.isArray(report.snapshot?.details) && report.snapshot.details.length > 0
+      ? new Json2CsvParser({ fields: Object.keys(report.snapshot.details[0]) }).parse(report.snapshot.details)
+      : "No details available";
+
+    let finalCsv = "=== Report Metadata ===\n";
+    finalCsv += Object.entries(meta).map(([k, v]) => `${k},${v}`).join("\n");
+    finalCsv += "\n\n=== Report Summary ===\n" + summaryCsv;
+    finalCsv += "\n\n=== Report Details ===\n" + detailsCsv;
+
+    const safeName = report.name.replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
+    res.header("Content-Type", "text/csv");
+    res.attachment(`${safeName}_${new Date().toISOString().slice(0, 10)}.csv`);
+    res.send(finalCsv);
+  } catch (err) {
+    console.error("❌ exportReportById error:", err);
+    res.status(500).json({ message: "Failed to export report" });
   }
 };
