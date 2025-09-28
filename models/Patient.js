@@ -1,7 +1,10 @@
 import mongoose from "mongoose";
+import Counter from "./Counter.js"; // ✅ new import
 
 const patientSchema = new mongoose.Schema(
   {
+    patientId: { type: String, unique: true },
+
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     dob: { type: Date, required: true },
@@ -26,12 +29,12 @@ const patientSchema = new mongoose.Schema(
     validUntil: { type: Date },
     status: { type: String, enum: ["active", "inactive", "pending"], default: "active" },
     doctor: { type: mongoose.Schema.Types.ObjectId, ref: "Staff", required: false },
-    nextAppointment: { type: Date }, // optional, since appointments are tracked separately
+    nextAppointment: { type: Date },
   },
   { timestamps: true }
 );
 
-// Helper to calculate age from DOB
+// Helper: calculate age
 const calculateAge = (dob) => {
   if (!dob) return null;
   const birthDate = new Date(dob);
@@ -41,14 +44,26 @@ const calculateAge = (dob) => {
 };
 
 // Pre-save hook
-patientSchema.pre("save", function (next) {
+patientSchema.pre("save", async function (next) {
   if (this.dob) {
     this.age = calculateAge(this.dob);
   }
+
+  // ✅ Generate patientId safely with counter
+  if (!this.patientId) {
+    const counter = await Counter.findOneAndUpdate(
+      { name: "patientId" },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
+    this.patientId = `PAT${String(counter.seq).padStart(4, "0")}`;
+  }
+
   next();
 });
 
-// Pre-update hook
+// Pre-update hook: recalc age if DOB changes
 patientSchema.pre(["findOneAndUpdate", "updateOne"], function (next) {
   const update = this.getUpdate();
   if (update.dob) {

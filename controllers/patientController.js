@@ -19,12 +19,15 @@ const nextAppointmentStatus = (nextAppointment) => {
 };
 
 // Helper: format patient for frontend
+// Helper: format patient for frontend
 const formatPatient = (patient) => {
   const obj = patient.toObject();
-  obj.id = obj._id.toString();
+  obj.id = obj._id.toString();         // keep Mongo _id
+  obj.patientId = obj.patientId;       // ✅ include generated patientId
   obj.appointmentStatus = nextAppointmentStatus(obj.nextAppointment);
   return obj;
 };
+
 
 // CREATE a new patient
 export const createPatient = async (req, res) => {
@@ -55,42 +58,55 @@ export const createPatient = async (req, res) => {
 };
 
 // GET all patients (search, filter, pagination, sorting)
+// GET all patients (search, filter, pagination, sorting)
+// GET all patients (search, filter, pagination, sorting)
 export const getAllPatients = async (req, res) => {
   try {
-    let { page = 1, limit = 5, search = '', status = '', diagnosis = '', sortColumn = 'createdAt', sortDirection = 'desc' } = req.query;
+    let { 
+      page = 1, 
+      limit = 5, 
+      search = '', 
+      status = '', 
+      diagnosis = '', 
+      sortColumn = 'createdAt', 
+      sortDirection = 'desc' 
+    } = req.query;
+
     page = parseInt(page);
     limit = parseInt(limit);
 
     const query = {};
 
-    // --- Auth bypass ---
-    // if (req.user?.role === 'doctor') query.doctor = req.user._id;
-
-    // Search by first/last name
+    // 🔍 Search by patientId OR first/last name
     if (search) {
       query.$or = [
+        { patientId: { $regex: search, $options: 'i' } }, // ✅ search by friendly ID
         { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } }
       ];
     }
 
     if (status) query.status = status;
     if (diagnosis) query.diagnosis = diagnosis;
 
-    // Sort
+    // 🔑 Align sort fields with frontend
     const columnMap = {
-      'Patient ID': '_id',
-      'Name': 'lastName',
-      'Age/Gender': 'age',
-      'Diagnosis': 'diagnosis',
-      'Stage': 'stage',
-      'Doctor': 'doctor',
-      'Next Appointment': 'nextAppointment',
-      'Status': 'status'
+      patientId: 'patientId',   // ✅ friendly ID
+      id: 'patientId',          // fallback if frontend sends "id"
+      lastName: 'lastName',
+      age: 'age',
+      diagnosis: 'diagnosis',
+      stage: 'stage',
+      doctor: 'doctor',
+      nextAppointment: 'nextAppointment',
+      status: 'status',
+      createdAt: 'createdAt'    // default fallback
     };
+
     const sortField = columnMap[sortColumn] || 'createdAt';
     const sortOptions = { [sortField]: sortDirection === 'asc' ? 1 : -1 };
 
+    // 📋 Fetch results
     const totalCount = await Patient.countDocuments(query);
     const patients = await Patient.find(query)
       .sort(sortOptions)
@@ -102,13 +118,15 @@ export const getAllPatients = async (req, res) => {
       patients: patients.map(formatPatient),
       totalCount,
       page,
-      pages: Math.ceil(totalCount / limit)
+      totalPages: Math.ceil(totalCount / limit)
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+
 
 // GET a single patient
 export const getPatientById = async (req, res) => {

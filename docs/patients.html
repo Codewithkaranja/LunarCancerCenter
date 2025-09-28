@@ -771,7 +771,7 @@
               >
             </li>
             <li>
-              <a href="pharmacy.html" class="active"
+              <a href="pharmacy.html" 
                 ><i class="fas fa-prescription"></i> Pharmacy</a
               >
             </li>
@@ -819,7 +819,7 @@
               <i class="fas fa-bell"></i>
               <span class="badge">3</span>
             </div>
-            <button class="btn-logout" onclick="logout()">Logout</button>
+            <button class="btn-logout" onclick="logout()"><i class="fas fa-sign-out-alt"></i>Logout</button>
           </div>
         </header>
 
@@ -900,6 +900,7 @@
               <h2 class="table-title">Patient Records</h2>
               <div class="table-actions">
                 <select>
+                  <option>Sort by: Patient ID</option>
                   <option>Sort by: Newest First</option>
                   <option>Sort by: Oldest First</option>
                   <option>Sort by: Name A-Z</option>
@@ -964,13 +965,13 @@
                     <span class="status-badge status-active">Active</span>
                   </td>
                   <td class="action-cell">
-                    <button class="action-btn btn-view">
-                      <i class="fas fa-eye"></i> View
-                    </button>
-                    <button class="action-btn btn-edit">
-                      <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="action-btn btn-prescription">
+                     <button class="action-btn btn-view" data-id="{{patient.patientId}}">
+  <i class="fas fa-eye"></i> View
+</button>
+             <button class="action-btn btn-edit" data-id="{{patient.patientId}}">
+             <i class="fas fa-edit"></i> Edit</button>
+
+         <button class="action-btn btn-prescription">
                       <i class="fas fa-prescription-bottle-alt"></i>
                       Prescription
                     </button>
@@ -1308,7 +1309,7 @@
       </div>
     </footer>
 
-    <script src="/SCRIPTS/patients.js">
+    <script src="SCRIPTS/patients.js">
       document.getElementById("sort-select").addEventListener("change", function() {
     const [colIndex, order] = this.value.split("-");
     currentSort = { column: parseInt(colIndex), asc: order === "asc" };

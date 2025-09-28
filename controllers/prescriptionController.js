@@ -1,6 +1,7 @@
+// controllers/prescriptionController.js
 import Prescription from '../models/Prescription.js';
 import Patient from '../models/Patient.js';
-import Inventory from '../models/Inventory.js'; // 👈 link inventory
+import Inventory from '../models/Inventory.js';
 
 // @desc    Create a prescription (draft or submitted)
 // @route   POST /api/prescriptions
@@ -17,7 +18,7 @@ export const createPrescription = async (req, res) => {
       patientId,
       // doctorId: req.user?.id || null, // enable when auth is active
       items: items.map(item => ({
-        medication: item.medicationId, // 👈 now using Inventory _id
+        medication: item.medicationId, // 👈 Inventory _id
         dosage: item.dosage,
         frequency: item.frequency,
         duration: item.duration,
@@ -50,7 +51,7 @@ export const getAllPrescriptions = async (req, res) => {
 
     const prescriptions = await Prescription.find(filter)
       .populate('patientId', 'name')
-      .populate('items.medication', 'name category stock'); // 👈 show Inventory details
+      .populate('items.medication', 'name category quantity unit');
 
     res.json(prescriptions);
   } catch (error) {
@@ -66,7 +67,7 @@ export const getPrescriptionById = async (req, res) => {
   try {
     const prescription = await Prescription.findById(req.params.id)
       .populate('patientId', 'name')
-      .populate('items.medication', 'name category stock');
+      .populate('items.medication', 'name category quantity unit');
 
     if (!prescription) return res.status(404).json({ message: 'Prescription not found' });
 
@@ -77,7 +78,7 @@ export const getPrescriptionById = async (req, res) => {
   }
 };
 
-// @desc    Update prescription (edit or reissue)
+// @desc    Update prescription (edit, reissue, or dispense)
 // @route   PUT /api/prescriptions/:id
 // @access  Doctor, Admin, Pharmacist
 export const updatePrescription = async (req, res) => {
@@ -87,6 +88,7 @@ export const updatePrescription = async (req, res) => {
 
     const { items, status, billStatus } = req.body;
 
+    // Update items
     if (items) {
       prescription.items = items.map(item => ({
         medication: item.medicationId,
@@ -97,17 +99,27 @@ export const updatePrescription = async (req, res) => {
         instructions: item.instructions,
       }));
     }
+
     if (status) prescription.status = status;
     if (billStatus) prescription.billStatus = billStatus;
 
-    // 👇 Auto deduct stock if prescription is dispensed
+    // 👇 Auto deduct stock if dispensed
     if (status === 'dispensed') {
       for (const item of prescription.items) {
-        await Inventory.findByIdAndUpdate(
-          item.medication,
-          { $inc: { stock: -item.quantity } }, // decrement stock
-          { new: true }
-        );
+        const inventoryItem = await Inventory.findById(item.medication);
+        if (!inventoryItem) {
+          return res.status(404).json({ message: `Inventory item not found for medicationId: ${item.medication}` });
+        }
+
+        if (inventoryItem.quantity < item.quantity) {
+          return res.status(400).json({
+            message: `Not enough stock for ${inventoryItem.name}. Available: ${inventoryItem.quantity}`,
+          });
+        }
+
+        // Deduct stock
+        inventoryItem.quantity -= item.quantity;
+        await inventoryItem.save();
       }
     }
 

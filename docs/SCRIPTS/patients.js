@@ -208,31 +208,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Initialize patient data
 // Initialize patient data
-async function initializePatients() {
+async function initializePatients(page = 1, limit = 5) {
   try {
-    const response = await fetch(`${API_BASE}/api/patients`);
+    const response = await fetch(`${API_BASE}/api/patients?page=${page}&limit=${limit}`);
     if (!response.ok) throw new Error("Failed to fetch patients");
 
     const data = await response.json();
 
-    // ✅ If backend returned patients, use them
-    // ✅ If backend empty, fall back to samplePatients
-    allPatients = (data && data.length > 0) ? data : samplePatients;
+    // ✅ Get patients array from backend
+    allPatients = (data && data.patients && data.patients.length > 0)
+      ? data.patients
+      : [];
+
     filteredPatients = [...allPatients];
 
     renderPatients();
-    updatePagination();
+    updatePagination(data.page, data.pages, data.totalCount);
   } catch (error) {
     console.error("Error fetching patients:", error);
 
-    // ✅ If backend completely fails, fall back to dummy data
-    allPatients = samplePatients;
-    filteredPatients = [...allPatients];
+    // ❌ No more fallback to samplePatients
+    allPatients = [];
+    filteredPatients = [];
 
     renderPatients();
-    updatePagination();
+    updatePagination(1, 1, 0);
   }
 }
+
 
 
 // Set up event listeners
@@ -299,6 +302,9 @@ async function handleSearch() {
   const statusFilter = document.getElementById('filter-status').value;
 
   try {
+    // Always reset to page 1 on new search
+    currentPage = 1;
+
     const query = new URLSearchParams({
       search: searchText,
       diagnosis: diagnosisFilter,
@@ -313,31 +319,36 @@ async function handleSearch() {
     if (!response.ok) throw new Error('Failed to fetch filtered patients');
     const data = await response.json();
 
-    filteredPatients = data.patients;
+    filteredPatients = data.patients || [];
     renderPatients();
-    updatePagination(data.totalCount); // update pagination with backend total
+
+    // Pass all 3 params so pagination works
+    updatePagination(data.page, data.totalPages, data.totalCount);
   } catch (error) {
     console.error(error);
-    alert('Failed to search patients.');
+    alert('Search failed');
   }
 }
+
 
 // Handle sorting
 function handleSort(column) {
   const columnMap = {
     'Patient ID': 'id',
     'Name': 'lastName',
-    'Age/Gender': 'ageGender', // NEW
+    'Age/Gender': 'age',        // backend can sort by age
     'Diagnosis': 'diagnosis',
     'Stage': 'stage',
     'Doctor': 'doctor',
     'Next Appointment': 'nextAppointment',
-    'Status': 'status'
+    'Status': 'status',
+    'Created At': 'createdAt'   // ✅ added for patient creation date
   };
 
   const sortField = columnMap[column];
   if (!sortField) return;
 
+  // Toggle or set sort
   if (currentSort.column === sortField) {
     currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
   } else {
@@ -345,93 +356,79 @@ function handleSort(column) {
     currentSort.direction = 'asc';
   }
 
-  filteredPatients.sort((a, b) => {
-    let valueA, valueB;
+  // 🔑 Apply sorting via backend fetch
+  const hasFilters =
+    document.getElementById("search-name").value ||
+    document.getElementById("filter-diagnosis").value ||
+    document.getElementById("filter-status").value;
 
-    if (sortField === 'lastName') {
-      valueA = `${a.lastName} ${a.firstName}`;
-      valueB = `${b.lastName} ${b.firstName}`;
-    } else if (sortField === 'ageGender') {
-      valueA = `${a.age}-${a.gender}`;
-      valueB = `${b.age}-${b.gender}`;
-    } else if (sortField === 'nextAppointment') {
-      valueA = new Date(a.nextAppointment);
-      valueB = new Date(b.nextAppointment);
-    } else {
-      valueA = a[sortField];
-      valueB = b[sortField];
-    }
-
-    if (valueA < valueB) return currentSort.direction === 'asc' ? -1 : 1;
-    if (valueA > valueB) return currentSort.direction === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  renderPatients();
+  if (hasFilters) {
+    handleSearch();
+  } else {
+    initializePatients(currentPage, patientsPerPage);
+  }
 }
+
+
 
 // Handle sort dropdown
 function handleSortDropdown(value) {
   const sortMap = {
-    'Sort by: Newest First': { field: 'nextAppointment', direction: 'desc' },
-    'Sort by: Oldest First': { field: 'nextAppointment', direction: 'asc' },
+    'Sort by: Newest First': { field: 'createdAt', direction: 'desc' },
+    'Sort by: Oldest First': { field: 'createdAt', direction: 'asc' },
     'Sort by: Name A-Z': { field: 'lastName', direction: 'asc' },
-    'Sort by: Name Z-A': { field: 'lastName', direction: 'desc' }
+    'Sort by: Name Z-A': { field: 'lastName', direction: 'desc' },
+    'Sort by: Patient ID': { field: 'patientId', direction: 'asc' } // ✅ new option
   };
   
   const sortConfig = sortMap[value];
   if (!sortConfig) return;
-  
+
   currentSort.column = sortConfig.field;
   currentSort.direction = sortConfig.direction;
-  
-  filteredPatients.sort((a, b) => {
-    let valueA = a[sortConfig.field];
-    let valueB = b[sortConfig.field];
-    
-    // Special handling for name sorting
-    if (sortConfig.field === 'lastName') {
-      valueA = `${a.lastName} ${a.firstName}`;
-      valueB = `${b.lastName} ${b.firstName}`;
-    }
-    
-    if (valueA < valueB) return sortConfig.direction === 'asc' ? -1 : 1;
-    if (valueA > valueB) return sortConfig.direction === 'asc' ? 1 : -1;
-    return 0;
-  });
-  
-  renderPatients();
+
+  // 🔑 Apply sorting via backend fetch
+  const hasFilters =
+    document.getElementById("search-name").value ||
+    document.getElementById("filter-diagnosis").value ||
+    document.getElementById("filter-status").value;
+
+  if (hasFilters) {
+    handleSearch();
+  } else {
+    initializePatients(currentPage, patientsPerPage);
+  }
 }
+
+
 
 // Render patients table
 /*function getPatientId(patient) {
   return patient.id || patient._id; // normalize frontend vs backend
 }*/
 
-function renderPatients() {
+function renderPatients(patients = filteredPatients) {
   const tbody = document.querySelector('.patients-table tbody');
   tbody.innerHTML = '';
-  
-  const startIndex = (currentPage - 1) * patientsPerPage;
-  const endIndex = Math.min(startIndex + patientsPerPage, filteredPatients.length);
-  const patientsToShow = filteredPatients.slice(startIndex, endIndex);
-  
-  patientsToShow.forEach(patient => {
+
+  patients.forEach(patient => {
     const row = document.createElement('tr');
-    
+
     // Format status badge
     const statusClass = `status-${patient.status}`;
-    const statusText = patient.status.charAt(0).toUpperCase() + patient.status.slice(1);
-    
-    const patientId = normalizeId(patient); // 🔑 use normalizeId consistently
-    
+    const statusText = patient.status
+      ? patient.status.charAt(0).toUpperCase() + patient.status.slice(1)
+      : "N/A";
+
+    const patientId = normalizeId(patient); // 🔑 still use your helper
+
     row.innerHTML = `
       <td>${patientId}</td>
       <td>${patient.firstName} ${patient.lastName}</td>
-      <td>${patient.age}/${patient.gender}</td>
-      <td>${patient.diagnosis}</td>
-      <td>${patient.stage}</td>
-      <td>${patient.doctor}</td>
+      <td>${patient.age || "N/A"}/${patient.gender || "N/A"}</td>
+      <td>${patient.diagnosis || "N/A"}</td>
+      <td>${patient.stage || "N/A"}</td>
+      <td>${patient.doctor || "N/A"}</td>
       <td>${formatDate(patient.nextAppointment)}</td>
       <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       <td class="action-cell">
@@ -453,10 +450,10 @@ function renderPatients() {
           </button>` : ''}
       </td>
     `;
-    
+
     tbody.appendChild(row);
   });
-  
+
   // Add event listeners to action buttons
   addActionButtonListeners();
 }
@@ -554,107 +551,199 @@ async function fetchPatients(page = 1, limit = 5) {
 
 
 // Update pagination controls
-function updatePagination(totalCount) {
-  const totalPages = Math.ceil(totalCount / patientsPerPage);
-  const paginationContainer = document.getElementById('pagination');
-  const paginationInfo = document.getElementById('pagination-info');
-  
-  // Update pagination info
+function updatePagination(current, totalPages, totalCount) {
+  const paginationContainer = document.getElementById("pagination");
+  const paginationInfo = document.getElementById("pagination-info");
+
+  // Update global state
+  currentPage = current;
+
+  // ✅ Pagination info
   const startIndex = (currentPage - 1) * patientsPerPage + 1;
-  const endIndex = Math.min(startIndex + patientsPerPage - 1, filteredPatients.length);
-  paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${totalCount} patients`;
-;
-  
-  // Generate pagination buttons
-  let paginationHTML = '';
-  
+  const endIndex = Math.min(currentPage * patientsPerPage, totalCount);
+  paginationInfo.textContent =
+    totalCount > 0
+      ? `Showing ${startIndex}-${endIndex} of ${totalCount} patients`
+      : "No patients found";
+
+  // No buttons if no patients
+  if (totalPages <= 1) {
+    paginationContainer.innerHTML = "";
+    return;
+  }
+
+  // ✅ Generate pagination buttons
+  let paginationHTML = "";
+
   // Previous button
-  paginationHTML += `<button class="pagination-btn" ${currentPage === 1 ? 'disabled' : ''}>&laquo; Previous</button>`;
-  
-  // Page buttons
+  paginationHTML += `
+    <button class="pagination-btn prev-btn ${currentPage === 1 ? "disabled" : ""}" 
+      ${currentPage === 1 ? "disabled" : ""}>
+      &laquo; Previous
+    </button>`;
+
+  // Page number buttons with ellipses
   const maxVisiblePages = 5;
   let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
   let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-  
+
   if (endPage - startPage + 1 < maxVisiblePages) {
     startPage = Math.max(1, endPage - maxVisiblePages + 1);
   }
-  
-  for (let i = startPage; i <= endPage; i++) {
-    paginationHTML += `<button class="pagination-btn ${i === currentPage ? 'active' : ''}">${i}</button>`;
+
+  // Always show first page if not in range
+  if (startPage > 1) {
+    paginationHTML += `
+      <button class="pagination-btn page-btn" data-page="1">1</button>
+      <span class="ellipsis">...</span>`;
   }
-  
+
+  for (let i = startPage; i <= endPage; i++) {
+    paginationHTML += `
+      <button 
+        class="pagination-btn page-btn ${i === currentPage ? "active" : ""}" 
+        data-page="${i}">
+        ${i}
+      </button>`;
+  }
+
+  // Always show last page if not in range
+  if (endPage < totalPages) {
+    paginationHTML += `
+      <span class="ellipsis">...</span>
+      <button class="pagination-btn page-btn" data-page="${totalPages}">
+        ${totalPages}
+      </button>`;
+  }
+
   // Next button
-  paginationHTML += `<button class="pagination-btn" ${currentPage === totalPages ? 'disabled' : ''}>Next &raquo;</button>`;
-  
+  paginationHTML += `
+    <button class="pagination-btn next-btn ${currentPage === totalPages ? "disabled" : ""}" 
+      ${currentPage === totalPages ? "disabled" : ""}>
+      Next &raquo;
+    </button>`;
+
   paginationContainer.innerHTML = paginationHTML;
+
+  // ✅ Helper: decide whether to use search or normal load
+  const loadPage = (page) => {
+    const hasFilters =
+      document.getElementById("search-name").value ||
+      document.getElementById("filter-diagnosis").value ||
+      document.getElementById("filter-status").value;
+
+    if (hasFilters) {
+      currentPage = page;
+      handleSearch();
+    } else {
+      initializePatients(page, patientsPerPage);
+    }
+  };
+
+  // ✅ Add event listeners
+  paginationContainer.querySelector(".prev-btn")?.addEventListener("click", () => {
+    if (currentPage > 1) loadPage(currentPage - 1);
+  });
+
+  paginationContainer.querySelectorAll(".page-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const page = parseInt(btn.dataset.page, 10);
+      if (page !== currentPage) loadPage(page);
+    });
+  });
+
+  paginationContainer.querySelector(".next-btn")?.addEventListener("click", () => {
+    if (currentPage < totalPages) loadPage(currentPage + 1);
+  });
 }
+
+
+
+
 
 // View patient details
 function normalizeId(patient) {
   return patient._id || patient.id; // prefer backend ID, fallback frontend
 }
 
-function viewPatient(patientId) {
-  const patient = allPatients.find(p => normalizeId(p) === patientId);
-  if (!patient) {
-    alert("Patient not found.");
-    return;
-  }
+async function viewPatient(patientId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/patients/${patientId}`);
+    const data = await res.json();
 
-  // Replace with modal in production
-  alert(
-    `Viewing patient: ${patient.firstName} ${patient.lastName}\n` +
-    `ID: ${normalizeId(patient)}\n` +
-    `Diagnosis: ${patient.diagnosis || "N/A"}`
-  );
+    if (!data.success) {
+      alert(data.message || "Patient not found.");
+      return;
+    }
+
+    const patient = data.patient;
+
+    // Replace with modal in production
+    alert(
+      `Viewing patient: ${patient.firstName} ${patient.lastName}\n` +
+      `ID: ${patient.patientId}\n` +
+      `Diagnosis: ${patient.diagnosis || "N/A"}`
+    );
+
+  } catch (error) {
+    console.error(error);
+    alert("Failed to fetch patient data.");
+  }
 }
+
 
 
 // Edit patient
 // Helper to normalize id/_id (reuse everywhere)
-function normalizeId(patient) {
-  return patient.id || patient._id;
-}
+async function editPatient(patientId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/patients/${patientId}`);
+    const data = await res.json();
 
-function editPatient(patientId) {
-  const patient = allPatients.find(p => normalizeId(p) === patientId);
-  if (!patient) {
-    alert("Patient not found.");
-    return;
+    if (!data.success) {
+      alert(data.message || "Patient not found.");
+      return;
+    }
+
+    const patient = data.patient;
+
+    // Prefill modal fields
+    document.getElementById("first-name").value = patient.firstName || "";
+    document.getElementById("last-name").value = patient.lastName || "";
+    document.getElementById("dob").value = patient.dob ? patient.dob.split("T")[0] : "";
+    document.getElementById("gender").value = patient.gender || "";
+    document.getElementById("phone").value = patient.phone || "";
+    document.getElementById("email").value = patient.email || "";
+    document.getElementById("address").value = patient.address || "";
+    document.getElementById("diagnosis").value = patient.diagnosis || "";
+    document.getElementById("diagnosis-date").value = patient.diagnosisDate ? patient.diagnosisDate.split("T")[0] : "";
+    document.getElementById("stage").value = patient.stage || "";
+    document.getElementById("treatment-plan").value = patient.treatmentPlan || "";
+    document.getElementById("allergies").value = patient.allergies || "";
+    document.getElementById("medical-history").value = patient.medicalHistory || "";
+    document.getElementById("insurance-provider").value = patient.insuranceProvider || "";
+    document.getElementById("insurance-id").value = patient.insuranceId || "";
+    document.getElementById("coverage").value = patient.coverage || "";
+    document.getElementById("valid-until").value = patient.validUntil ? patient.validUntil.split("T")[0] : "";
+    document.getElementById("doctor").value = patient.doctor || "";
+    document.getElementById("status").value = patient.status || "";
+    document.getElementById("next-appointment").value = patient.nextAppointment ? patient.nextAppointment.split("T")[0] : "";
+
+    // Track which patient is being edited
+    const modal = document.getElementById("patientModal");
+    modal.dataset.patientId = patient.patientId;
+
+    // Update modal title
+    document.querySelector(".modal-title").textContent = "Edit Patient";
+
+    openModal();
+
+  } catch (error) {
+    console.error(error);
+    alert("Failed to fetch patient data.");
   }
-
-  // Prefill modal fields
-  document.getElementById("first-name").value = patient.firstName || "";
-  document.getElementById("last-name").value = patient.lastName || "";
-  document.getElementById("dob").value = patient.dob ? patient.dob.split("T")[0] : "";
-  document.getElementById("gender").value = patient.gender || "";
-  document.getElementById("phone").value = patient.phone || "";
-  document.getElementById("email").value = patient.email || "";
-  document.getElementById("address").value = patient.address || "";
-  document.getElementById("diagnosis").value = patient.diagnosis || "";
-  document.getElementById("diagnosis-date").value = patient.diagnosisDate ? patient.diagnosisDate.split("T")[0] : "";
-  document.getElementById("stage").value = patient.stage || "";
-  document.getElementById("treatment-plan").value = patient.treatmentPlan || "";
-  document.getElementById("allergies").value = patient.allergies || "";
-  document.getElementById("medical-history").value = patient.medicalHistory || "";
-  document.getElementById("insurance-provider").value = patient.insuranceProvider || "";
-  document.getElementById("insurance-id").value = patient.insuranceId || "";
-  document.getElementById("coverage").value = patient.coverage || "";
-  document.getElementById("valid-until").value = patient.validUntil ? patient.validUntil.split("T")[0] : "";
-  document.getElementById("doctor").value = patient.doctor || "";
-  document.getElementById("status").value = patient.status || "";
-  document.getElementById("next-appointment").value = patient.nextAppointment ? patient.nextAppointment.split("T")[0] : "";
-
-  // Track which patient is being edited
-  const modal = document.getElementById("patientModal");
-  modal.dataset.patientId = normalizeId(patient);
-
-  // Update modal title
-  document.querySelector(".modal-title").textContent = "Edit Patient";
-
-  openModal();
 }
+
 
 
 
@@ -678,38 +767,49 @@ function normalizeId(patient) {
 }
 
 // Save patient (add or edit)
+// Save patient (add or edit)
 async function savePatient() {
   const modal = document.getElementById("patientModal");
   const patientId = modal.dataset.patientId;
   const isEditing = !!patientId;
 
-  const dob = document.getElementById('dob').value;
+  const dob = document.getElementById("dob").value;
+  const diagnosisDate = document.getElementById("diagnosis-date").value;
 
-  const patientData = {
-    firstName: document.getElementById('first-name').value.trim(),
-    lastName: document.getElementById('last-name').value.trim(),
-    dob: dob ? new Date(dob).toISOString() : null,   // ✅ send ISO date
-    gender: document.getElementById('gender').value,
-    phone: document.getElementById('phone').value.trim(),
-    email: document.getElementById('email').value.trim(),
-    address: document.getElementById('address').value.trim(),
-    diagnosis: document.getElementById('diagnosis').value.trim(),
-    diagnosisDate: document.getElementById('diagnosis-date').value 
-      ? new Date(document.getElementById('diagnosis-date').value).toISOString() 
-      : null,
-    stage: document.getElementById('stage').value,
-    treatmentPlan: document.getElementById('treatment-plan').value.trim(),
-    allergies: document.getElementById('allergies').value.trim(),
-    medicalHistory: document.getElementById('medical-history').value.trim(),
-    insuranceProvider: document.getElementById('insurance-provider').value.trim(),
-    insuranceId: document.getElementById('insurance-id').value.trim(),
-    coverage: document.getElementById('coverage').value,
-    validUntil: document.getElementById('valid-until').value 
-      ? new Date(document.getElementById('valid-until').value).toISOString() 
-      : null,
-    status: "active",   // keep if your schema expects it
-    doctor: document.getElementById('doctor').value || null, 
-  };
+ const patientData = {
+  firstName: document.getElementById("first-name").value.trim(),
+  lastName: document.getElementById("last-name").value.trim(),
+  dob: dob ? new Date(dob).toISOString() : null,
+  gender: document.getElementById("gender").value,
+  phone: document.getElementById("phone").value.trim(),
+  email: document.getElementById("email").value.trim(),
+  address: document.getElementById("address").value.trim(),
+  diagnosis: document.getElementById("diagnosis").value.trim(),
+  diagnosisDate: diagnosisDate ? new Date(diagnosisDate).toISOString() : null,
+  stage: document.getElementById("stage").value,
+  treatmentPlan: document.getElementById("treatment-plan").value,
+  allergies: document.getElementById("allergies").value.trim(),
+  medicalHistory: document.getElementById("medical-history").value.trim(),
+  insuranceProvider: document.getElementById("insurance-provider").value.trim(),
+  insuranceId: document.getElementById("insurance-id").value.trim(),
+  coverage: document.getElementById("coverage").value,
+  validUntil: document.getElementById("valid-until").value
+    ? new Date(document.getElementById("valid-until").value).toISOString()
+    : null,
+  // ✅ respect dropdown, default to active if empty
+  status: document.getElementById("status")?.value || "active",
+  doctor: document.getElementById("doctor").value || null,
+};
+
+
+
+  // --- Frontend validation ---
+  if (!patientData.firstName || !patientData.lastName || !patientData.dob ||
+      !patientData.diagnosis || !patientData.diagnosisDate || 
+      !patientData.stage || !patientData.treatmentPlan || !patientData.gender) {
+    alert("Please fill in all required fields.");
+    return;
+  }
 
   try {
     const url = isEditing
@@ -726,14 +826,14 @@ async function savePatient() {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error("Save failed:", errorData);
-      throw new Error("Failed to save patient");
+      throw new Error(errorData.error || "Unsuccessful");
     }
 
     await initializePatients();
     closeModal();
   } catch (error) {
     console.error(error);
-    alert("Error saving patient.");
+    alert("Save failed: " + error.message);
   }
 }
 
@@ -757,15 +857,23 @@ function calculateAge(dob) {
 // Generate a new patient ID
 // Generate a new patient ID
 function generatePatientId() {
-  // Find numeric parts of existing IDs
+  // Extract numeric parts of existing IDs (PAT0001 → 1)
   const numericIds = allPatients
-    .map(p => p.id.match(/\d+/))
-    .filter(Boolean)
-    .map(match => parseInt(match[0], 10));
+    .map(p => {
+      const match = (p.id || p._id || "").match(/\d+$/);
+      return match ? parseInt(match[0], 10) : null;
+    })
+    .filter(n => n !== null);
 
-  const maxId = numericIds.length ? Math.max(...numericIds) : 12344;
-  return `P${maxId + 1}`;
+  // Get the max number, default 0 if none exist
+  const maxId = numericIds.length ? Math.max(...numericIds) : 0;
+
+  // Next ID, padded to 4 digits
+  const nextId = (maxId + 1).toString().padStart(4, "0");
+
+  return `PAT${nextId}`;
 }
+
 
 // Handle prescription
 function handlePrescription(patientId) {
@@ -781,7 +889,7 @@ function handleBilling(patientId) {
 
 function exportCSV() {
   if (!checkPermission('export_data')) {
-    alert('You do not have permission to export data.');
+    alert('Unauthorized Access');
     return;
   }
 
@@ -841,112 +949,64 @@ function exportCSV() {
 // Export to PDF
 // Export to PDF
 async function exportPDF() {
-  if (!checkPermission('export_data')) {
-    alert('You do not have permission to export data.');
+  const { jsPDF } = window.jspdf;
+
+  // Check if patients data exists
+  if (!filteredPatients || filteredPatients.length === 0) {
+    alert("No patient data available to export.");
     return;
   }
 
-  const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 14;
   const lineHeight = 6;
 
-  // Placeholder logo (replace with your hospital logo later)
- // const logoUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Pink_ribbon.svg/1200px-Pink_ribbon.svg.png";
-;
-
-  // Convert logo to base64
-  async function loadLogo(url) {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    return new Promise(resolve => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.readAsDataURL(blob);
-    });
-  }
-
-  const logoData = await loadLogo(logoUrl);
-
   // Draw header
-  function drawHeader() {
-    if (logoData) doc.addImage(logoData, "SVG", pageWidth / 2 - 10, 5, 20, 20);
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text("Patient List Report", pageWidth / 2, 30, { align: "center" });
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Export Date: ${new Date().toLocaleDateString()}`, pageWidth / 2, 36, { align: "center" });
-  }
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("Patient List Report", pageWidth / 2, 20, { align: "center" });
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Export Date: ${new Date().toLocaleDateString()}`, pageWidth / 2, 26, { align: "center" });
 
-  // Draw footer
-  function drawFooter(pageNumber, totalPages) {
-    doc.setFontSize(8);
-    doc.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - 20, 290, { align: "right" });
-  }
-
-  let y = 45;
-  drawHeader();
+  let y = 35; // starting y position
 
   filteredPatients.forEach((p, i) => {
-    const startY = y;
-    const cardWidth = pageWidth - marginX * 2;
-    const cardPadding = 5;
-
-    // Prepare patient lines
     const lines = [
-      `ID: ${p._id || p.id || "N/A"}`,
+      `ID: ${p._id || "N/A"}`,
       `Name: ${p.firstName || ""} ${p.lastName || ""}`,
       `Age/Gender: ${p.age || "N/A"} / ${p.gender || "N/A"}`,
-      `Phone: ${p.phone || "N/A"}  |  Email: ${p.email || "N/A"}`,
+      `Phone: ${p.phone || "N/A"}`,
       `Address: ${p.address || "N/A"}`,
-      `Diagnosis: ${p.diagnosis || "N/A"} (Stage ${p.stage || "N/A"})`,
-      `Diagnosis Date: ${p.diagnosisDate ? formatDate(p.diagnosisDate) : "N/A"}`,
-      `Treatment Plan: ${p.treatmentPlan || "N/A"}`,
-      `Doctor: ${p.doctor || "N/A"}`,
-      `Next Appointment: ${p.nextAppointment ? formatDate(p.nextAppointment) : "N/A"}`,
-      `Status: ${p.status || "N/A"}`,
-      `Allergies: ${p.allergies || "N/A"}`,
-      `Medical History: ${p.medicalHistory || "N/A"}`,
-      `Insurance: ${p.insuranceProvider || "N/A"} (ID: ${p.insuranceId || "N/A"})`,
-      `Coverage: ${p.coverage || "N/A"} | Valid Until: ${p.validUntil ? formatDate(p.validUntil) : "N/A"}`
+      `Diagnosis: ${p.diagnosis || "N/A"}`
     ];
 
     // Draw background box
-    const blockHeight = lines.length * lineHeight + 10;
+    const blockHeight = lines.length * lineHeight + 4;
     doc.setDrawColor(41, 128, 185);
     doc.setFillColor(245, 245, 245);
-    doc.rect(marginX, startY, cardWidth, blockHeight, "FD");
+    doc.rect(marginX, y, pageWidth - marginX * 2, blockHeight, "FD");
 
-    // Draw text above background
-    let yText = startY + 5;
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
+    // Draw text inside box
+    let yText = y + 2;
     lines.forEach(line => {
-      doc.text(line, marginX + cardPadding, yText);
+      doc.text(line, marginX + 3, yText);
       yText += lineHeight;
     });
 
-    y += blockHeight + 8;
+    y += blockHeight + 5;
 
-    // Page break
-    if (y > 260) {
+    // Page break if needed
+    if (y > 280) {
       doc.addPage();
-      y = 45;
-      drawHeader();
+      y = 35;
     }
   });
 
-  // Footer page numbers
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    drawFooter(i, totalPages);
-  }
-
   doc.save(`patients_report_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
 
 // Format date
 function formatDate(dateString) {

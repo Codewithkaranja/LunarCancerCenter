@@ -12,7 +12,7 @@ import { protect, authorize } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 // 🔐 Protect all report routes
-router.use(protect);
+//router.use(protect);
 
 // 📊 Get all reports (with filters/pagination)
 router.get(

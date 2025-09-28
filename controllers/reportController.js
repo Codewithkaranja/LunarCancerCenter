@@ -54,45 +54,62 @@ export const getReports = async (req, res) => {
 
 // @desc   Generate new report
 // @route  POST /api/reports
+// controllers/reportController.js
 export const generateReport = async (req, res) => {
   try {
     const { name, type, dateRange } = req.body;
 
-    if (!name || !type) return res.status(400).json({ message: "Name and type are required" });
+    if (!name || !type) 
+      return res.status(400).json({ message: "Name and type are required" });
 
     let snapshot = { summary: {}, details: [] };
 
+    // -----------------------------
+    // Billing report
+    // -----------------------------
     if (type === "billing") {
       const invoices = await Invoice.find().populate("patientId", "name");
-      const total = invoices.reduce((s, i) => s + i.amount, 0);
-      const paid = invoices.filter(i => i.status === "paid").reduce((s, i) => s + i.amount, 0);
+
+      const total = invoices.reduce((s, i) => s + (i.amount || 0), 0);
+      const paid = invoices.filter(i => i.status === "paid").reduce((s, i) => s + (i.amount || 0), 0);
 
       snapshot.summary = { totalInvoices: invoices.length, total, paid, pending: total - paid };
       snapshot.details = invoices.map(i => ({
         id: i._id.toString(),
         patient: i.patientId?.name || "Unknown",
-        amount: i.amount,
+        amount: i.amount || 0,
         status: i.status,
       }));
     }
 
+    // -----------------------------
+    // Patient report
+    // -----------------------------
     if (type === "patient") {
       const patients = await Patient.find();
       snapshot.summary = { totalPatients: patients.length };
       snapshot.details = patients.map(p => ({ id: p._id.toString(), name: p.name, age: p.age }));
     }
 
+    // -----------------------------
+    // Staff report
+    // -----------------------------
     if (type === "staff") {
       const users = await User.find();
       snapshot.summary = { totalStaff: users.length };
       snapshot.details = users.map(u => ({ id: u._id.toString(), name: u.name, role: u.role }));
     }
 
+    // -----------------------------
+    // Temporary author fallback
+    // -----------------------------
+    const tempAuthorId = "64d9f1a2b3c4d5e6f7a8b9c0"; // <-- REPLACE with a real Staff _id
+
     const report = await Report.create({
       name,
       type,
       dateRange,
-      author: req.user._id,
+      author: tempAuthorId,
       snapshot,
     });
 
@@ -114,6 +131,8 @@ export const generateReport = async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
+
 
 // @desc   Export all reports as CSV
 // @route  GET /api/reports/export
