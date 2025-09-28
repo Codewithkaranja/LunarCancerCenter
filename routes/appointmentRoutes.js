@@ -17,5 +17,7 @@ router.post("/", authorize("admin", "receptionist", "nurse", "doctor"), createAp
 router.get("/:id", getAppointmentById);
 router.put("/:id", authorize("admin", "receptionist", "nurse", "doctor"), updateAppointment);
 router.delete("/:id", authorize("admin"), deleteAppointment);
+// GET all appointments for a specific patient
+router.get("/patient/:patientId", authorize("admin", "receptionist", "nurse", "doctor"), getAppointmentsByPatient);
 
 export default router;
