@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pharmacy Management</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      /* Your existing CSS styles here */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      body {
+        background-color: #f5f7fa;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .container {
+        display: flex;
+        min-height: 100vh;
+      }
+
+      /* Sidebar styles */
+      .sidebar {
+        width: 250px;
+        background: linear-gradient(135deg, #1a3a8f 0%, #0d2556 100%);
+        color: white;
+        height: 100vh;
+        position: fixed;
+        overflow-y: auto;
+      }
+
+      .sidebar-header {
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .sidebar-header img {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+      }
+
+      .sidebar-header h2 {
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .sidebar-menu ul {
+        list-style: none;
+        padding: 10px 0;
+      }
+
+      .sidebar-menu li {
+        margin: 5px 0;
+      }
+
+      .sidebar-menu a {
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        transition: all 0.3s;
+      }
+
+      .sidebar-menu a:hover,
+      .sidebar-menu a.active {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white;
+        border-left: 4px solid #f39c12;
+      }
+
+      .sidebar-menu i {
+        margin-right: 10px;
+        width: 20px;
+        text-align: center;
+      }
+
+      /* Main content styles */
+      .main-content {
+        flex: 1;
+        margin-left: 250px;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        background-color: white;
+        padding: 15px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .user-info {
+        display: flex;
+        align-items: center;
+      }
+
+      .user-info img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-right: 15px;
+      }
+
+      .user-details h3 {
+        font-size: 16px;
+        margin-bottom: 3px;
+      }
+
+      .user-details p {
+        font-size: 12px;
+        color: #777;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+      }
+
+      .notification {
+        position: relative;
+        margin-right: 20px;
+        font-size: 18px;
+        color: #555;
+      }
+
+      .badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background-color: #e74c3c;
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .btn-logout {
+        background-color: #f39c12;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+
+      /* Pharmacy content styles */
+      .pharmacy-content {
+        flex: 1;
+        padding: 20px 30px;
+      }
+
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .breadcrumb {
+        font-size: 14px;
+        color: #777;
+        margin-bottom: 5px;
+      }
+
+      .breadcrumb a {
+        color: #3498db;
+        text-decoration: none;
+      }
+
+      .page-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #2c3e50;
+      }
+
+      .page-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .btn {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s;
+      }
+
+      .btn-primary {
+        background-color: #3498db;
+        color: white;
+      }
+
+      .btn-success {
+        background-color: #2ecc71;
+        color: white;
+      }
+
+      .btn-warning {
+        background-color: #f39c12;
+        color: white;
+      }
+
+      .btn-danger {
+        background-color: #e74c3c;
+        color: white;
+      }
+
+      .btn:hover {
+        opacity: 0.9;
+        transform: translateY(-2px);
+      }
+
+      /* Dashboard cards */
+      .dashboard-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .dashboard-card {
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+
+      .card-title {
+        font-size: 14px;
+        color: #777;
+      }
+
+      .card-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+      }
+
+      .blue {
+        background-color: #e1f0ff;
+        color: #3498db;
+      }
+
+      .orange {
+        background-color: #fff4e6;
+        color: #f39c12;
+      }
+
+      .red {
+        background-color: #ffe9e9;
+        color: #e74c3c;
+      }
+
+      .green {
+        background-color: #e6f7ee;
+        color: #2ecc71;
+      }
+
+      .card-value {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+
+      .card-change {
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .positive {
+        color: #2ecc71;
+      }
+
+      .negative {
+        color: #e74c3c;
+      }
+
+      /* Alert styles */
+      .alert {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+      }
+
+      .alert-danger {
+        background-color: #ffe9e9;
+        color: #c0392b;
+        border-left: 4px solid #e74c3c;
+      }
+
+      .alert-icon {
+        margin-right: 15px;
+        font-size: 20px;
+      }
+
+      .alert strong {
+        display: block;
+        margin-bottom: 3px;
+      }
+
+      /* Tabs navigation */
+      .tabs-nav {
+        display: flex;
+        border-bottom: 1px solid #ddd;
+        margin-bottom: 20px;
+      }
+
+      .tab-btn {
+        padding: 12px 20px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        color: #777;
+        position: relative;
+      }
+
+      .tab-btn.active {
+        color: #3498db;
+      }
+
+      .tab-btn.active::after {
+        content: "";
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background-color: #3498db;
+      }
+
+      /* Content section */
+      .content-section {
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        margin-bottom: 20px;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .section-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #2c3e50;
+      }
+
+      .section-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      /* Search filters */
+      .search-filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .form-group label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #555;
+      }
+
+      .form-group input,
+      .form-group select {
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      /* Data table */
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+
+      .data-table th {
+        background-color: #f8f9fa;
+        text-align: left;
+        padding: 12px 15px;
+        font-weight: 600;
+        color: #555;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .data-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .data-table tr:hover {
+        background-color: #f8f9fa;
+      }
+
+      .status-badge {
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-low {
+        background-color: #ffe9e9;
+        color: #e74c3c;
+      }
+
+      .status-adequate {
+        background-color: #e6f7ee;
+        color: #2ecc71;
+      }
+
+      .status-expired {
+        background-color: #fef3e8;
+        color: #f39c12;
+      }
+
+      .status-pending {
+        background-color: #e1f0ff;
+        color: #3498db;
+      }
+
+      .action-cell {
+        display: flex;
+        gap: 8px;
+      }
+
+      .action-btn {
+        padding: 6px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .btn-edit {
+        background-color: #e1f0ff;
+        color: #3498db;
+      }
+
+      .btn-delete {
+        background-color: #ffe9e9;
+        color: #e74c3c;
+      }
+
+      .btn-view {
+        background-color: #fef3e8;
+        color: #f39c12;
+      }
+
+      .btn-dispense {
+        background-color: #e6f7ee;
+        color: #2ecc71;
+      }
+
+      /* Pagination */
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+      }
+
+      .pagination-info {
+        font-size: 14px;
+        color: #777;
+      }
+
+      .pagination-controls {
+        display: flex;
+        gap: 5px;
+      }
+
+      .pagination-btn {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        background-color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      .pagination-btn.active {
+        background-color: #3498db;
+        color: white;
+        border-color: #3498db;
+      }
+
+      /* Footer */
+      footer {
+        background-color: #2c3e50;
+        color: white;
+        padding: 30px 0 15px;
+        margin-top: auto;
+      }
+
+      .footer-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+        padding: 0 30px;
+        margin-bottom: 20px;
+      }
+
+      .footer-section h3 {
+        font-size: 18px;
+        margin-bottom: 15px;
+        color: #f39c12;
+      }
+
+      .footer-section p {
+        margin-bottom: 15px;
+        color: #ccc;
+      }
+
+      .footer-links li,
+      .contact-info li {
+        margin-bottom: 10px;
+        list-style: none;
+      }
+
+      .footer-links a {
+        color: #ccc;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: color 0.3s;
+      }
+
+      .footer-links a:hover {
+        color: white;
+      }
+
+      .contact-info li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #ccc;
+      }
+
+      .footer-bottom {
+        text-align: center;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        color: #999;
+        font-size: 14px;
+      }
+
+      /* Modal styles */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-content {
+        background-color: white;
+        border-radius: 8px;
+        width: 500px;
+        max-width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .modal-header {
+        padding: 15px 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        color: #777;
+      }
+
+      .modal-body {
+        padding: 20px;
+      }
+
+      .modal-form {
+        display: grid;
+        gap: 15px;
+      }
+
+      .modal-footer {
+        padding: 15px 20px;
+        border-top: 1px solid #eee;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 992px) {
+        .sidebar {
+          width: 70px;
+          overflow: visible;
+        }
+
+        .sidebar-header h2,
+        .sidebar-menu a span {
+          display: none;
+        }
+
+        .sidebar-header {
+          justify-content: center;
+        }
+
+        .sidebar-header img {
+          margin-right: 0;
+        }
+
+        .sidebar-menu a {
+          justify-content: center;
+        }
+
+        .sidebar-menu i {
+          margin-right: 0;
+          font-size: 20px;
+        }
+
+        .main-content {
+          margin-left: 70px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .page-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 15px;
+        }
+
+        .section-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 15px;
+        }
+
+        .pagination {
+          flex-direction: column;
+          gap: 15px;
+          align-items: flex-start;
+        }
+
+        .action-cell {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <img
+            src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjIgMTJoLTQiPjwvcGF0aD48cGF0aCBkPSJNNiAxMmg0Ij48L3BhdGg+PHJlY3QgeD0iMyIgeT0iNSIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiPjwvcmVjdD48cGF0aCBkPSJNMTIgMTB20iPjwvcGF0aD48L3N2Zz4="
+            alt="Logo"
+          />
+          <h2>Lunar Cancer Care</h2>
+        </div>
+        <div class="sidebar-menu">
+          <ul>
+            <li>
+              <a href="dashboard.html"
+                ><i class="fas fa-home"></i> <span>Dashboard</span></a
+              >
+            </li>
+            <li>
+              <a href="patients.html"
+                ><i class="fas fa-user-injured"></i> <span>Patients</span></a
+              >
+            </li>
+            <li>
+              <a href="appointments.html"
+                ><i class="fas fa-calendar-check"></i>
+                <span>Appointments</span></a
+              >
+            </li>
+            <li>
+              <a href="inventory.html"
+                ><i class="fas fa-pills"></i> <span>Inventory</span></a
+              >
+            </li>
+            <li>
+              <a href="pharmacy.html" class="active"
+                ><i class="fas fa-prescription"></i> <span>Pharmacy</span></a
+              >
+            </li>
+            <li>
+              <a href="invoice.html"
+                ><i class="fas fa-file-invoice-dollar"></i>
+                <span>Billing</span></a
+              >
+            </li>
+            <li>
+              <a href="reports.html"
+                ><i class="fas fa-chart-bar"></i> <span>Reports</span></a
+              >
+            </li>
+            <li>
+              <a href="settings.html"
+                ><i class="fas fa-cog"></i> <span>Settings</span></a
+              >
+            </li>
+            <li>
+              <a href="index.html"
+                ><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Header -->
+        <header>
+          <div class="user-info">
+            <img
+              src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmMzljMTIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+"
+              alt="User"
+            />
+            <div class="user-details">
+              <h3>Pharmacist John</h3>
+              <p>Pharmacy Department</p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <div class="notification">
+              <i class="fas fa-bell"></i>
+              <span class="badge">5</span>
+            </div>
+            <button class="btn-logout" onclick="logout()">Logout</button>
+          </div>
+        </header>
+
+        <!-- Pharmacy Content -->
+        <div class="pharmacy-content">
+          <div class="page-header">
+            <div>
+              <div class="breadcrumb">
+                <a href="dashboard.html">Dashboard</a> > Pharmacy
+              </div>
+              <h1 class="page-title">Pharmacy Management</h1>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-primary" id="add-medicine-btn">
+                <i class="fas fa-plus"></i> Add Medicine
+              </button>
+              <button class="btn btn-success" id="export-report-btn">
+                <i class="fas fa-file-export"></i> Export Report
+              </button>
+            </div>
+          </div>
+
+          <!-- Dashboard Cards -->
+          <div class="dashboard-cards">
+            <div class="dashboard-card">
+              <div class="card-header">
+                <div class="card-title">Total Medicines</div>
+                <div class="card-icon blue">
+                  <i class="fas fa-pills"></i>
+                </div>
+              </div>
+              <div class="card-value" id="total-medicines">248</div>
+              <div class="card-change positive">
+                <i class="fas fa-arrow-up"></i> 12% from last month
+              </div>
+            </div>
+            <div class="dashboard-card">
+              <div class="card-header">
+                <div class="card-title">Pending Prescriptions</div>
+                <div class="card-icon orange">
+                  <i class="fas fa-prescription"></i>
+                </div>
+              </div>
+              <div class="card-value" id="pending-prescriptions">18</div>
+              <div class="card-change negative">
+                <i class="fas fa-arrow-up"></i> 3 new today
+              </div>
+            </div>
+            <div class="dashboard-card">
+              <div class="card-header">
+                <div class="card-title">Low Stock Items</div>
+                <div class="card-icon red">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </div>
+              </div>
+              <div class="card-value" id="low-stock-items">7</div>
+              <div class="card-change negative">
+                <i class="fas fa-arrow-up"></i> Needs restocking
+              </div>
+            </div>
+            <div class="dashboard-card">
+              <div class="card-header">
+                <div class="card-title">Today's Revenue</div>
+                <div class="card-icon green">
+                  <i class="fas fa-money-bill-wave"></i>
+                </div>
+              </div>
+              <div class="card-value">KES 42,580</div>
+              <div class="card-change positive">
+                <i class="fas fa-arrow-up"></i> 8% from yesterday
+              </div>
+            </div>
+          </div>
+
+          <!-- Alerts Section -->
+          <div class="alert alert-danger">
+            <div class="alert-icon">
+              <i class="fas fa-exclamation-circle"></i>
+            </div>
+            <div>
+              <strong>Expiry Alert</strong>
+              <p id="expiry-alert-text">
+                3 medications will expire in the next 15 days. Please review
+                inventory.
+              </p>
+            </div>
+          </div>
+
+          <!-- Tabs Navigation -->
+          <div class="tabs-nav">
+            <button class="tab-btn active" data-tab="inventory">
+              Inventory Management
+            </button>
+            <button class="tab-btn" data-tab="prescriptions">
+              Prescriptions
+            </button>
+            <button class="tab-btn" data-tab="billing">Billing</button>
+            <button class="tab-btn" data-tab="reports">Reports</button>
+          </div>
+
+          <!-- Inventory Management Section -->
+          <div class="content-section" id="inventory-section">
+            <div class="section-header">
+              <h2 class="section-title">Medicine Inventory</h2>
+              <div class="section-actions">
+                <button class="btn btn-primary" id="add-medicine-btn-2">
+                  <i class="fas fa-plus"></i> Add New Medicine
+                </button>
+                <button class="btn btn-warning" id="restock-btn">
+                  <i class="fas fa-sync-alt"></i> Restock
+                </button>
+              </div>
+            </div>
+
+            <div class="search-filters">
+              <div class="form-group">
+                <label for="search-medicine">Search Medicine</label>
+                <input
+                  type="text"
+                  id="search-medicine"
+                  placeholder="Enter medicine name"
+                />
+              </div>
+              <div class="form-group">
+                <label for="filter-category">Category</label>
+                <select id="filter-category">
+                  <option value="">All Categories</option>
+                  <option value="antibiotics">Antibiotics</option>
+                  <option value="analgesics">Analgesics</option>
+                  <option value="antineoplastics">Antineoplastics</option>
+                  <option value="cardiovascular">Cardiovascular</option>
+                  <option value="gastrointestinal">Gastrointestinal</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="filter-status">Stock Status</label>
+                <select id="filter-status">
+                  <option value="">All Statuses</option>
+                  <option value="low">Low Stock</option>
+                  <option value="adequate">Adequate</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" id="apply-filters-btn">
+                Apply Filters
+              </button>
+            </div>
+
+            <table class="data-table" id="medicine-table">
+              <thead>
+                <tr>
+                  <th>Medicine Name</th>
+                  <th>Batch Number</th>
+                  <th>Expiry Date</th>
+                  <th>Quantity</th>
+                  <th>Unit Price (KES)</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="medicine-table-body">
+                <!-- Table rows will be populated by JavaScript -->
+              </tbody>
+            </table>
+
+            <div class="pagination">
+              <div class="pagination-info" id="pagination-info">
+                Showing 1-5 of 48 medicines
+              </div>
+              <div class="pagination-controls" id="pagination-controls">
+                <button class="pagination-btn" id="prev-page">
+                  &laquo; Previous
+                </button>
+                <button class="pagination-btn active">1</button>
+                <button class="pagination-btn">2</button>
+                <button class="pagination-btn">3</button>
+                <button class="pagination-btn">4</button>
+                <button class="pagination-btn">5</button>
+                <button class="pagination-btn" id="next-page">
+                  Next &raquo;
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prescriptions Section -->
+          <div
+            class="content-section"
+            id="prescriptions-section"
+            style="display: none"
+          >
+            <div class="section-header">
+              <h2 class="section-title">Pending Prescriptions</h2>
+              <div class="section-actions">
+                <button class="btn btn-primary" id="refresh-prescriptions-btn">
+                  <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+              </div>
+            </div>
+
+            <table class="data-table" id="prescriptions-table">
+              <thead>
+                <tr>
+                  <th>Prescription ID</th>
+                  <th>Patient Name</th>
+                  <th>Doctor</th>
+                  <th>Date</th>
+                  <th>Medicines</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="prescriptions-table-body">
+                <!-- Table rows will be populated by JavaScript -->
+              </tbody>
+            </table>
+
+            <div class="pagination">
+              <div class="pagination-info" id="prescriptions-pagination-info">
+                Showing 1-3 of 18 pending prescriptions
+              </div>
+              <div
+                class="pagination-controls"
+                id="prescriptions-pagination-controls"
+              >
+                <button class="pagination-btn">&laquo; Previous</button>
+                <button class="pagination-btn active">1</button>
+                <button class="pagination-btn">2</button>
+                <button class="pagination-btn">3</button>
+                <button class="pagination-btn">4</button>
+                <button class="pagination-btn">5</button>
+                <button class="pagination-btn">Next &raquo;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer 
+      <footer>
+        <div class="footer-bottom">
+          <p>
+            &copy; 2025 Lunar Cancer Care HMIS. All rights reserved. | Designed
+            for better healthcare management
+          </p>
+        </div>
+      </footer>-->
+    </div>
+
+    <!-- Medicine Modal -->
+    <div class="modal" id="medicine-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-title">Add Medicine</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="medicine-form" class="modal-form">
+            <input type="hidden" id="medicine-id" />
+            <div class="form-group">
+              <label for="medicine-name">Medicine Name</label>
+              <input type="text" id="medicine-name" required />
+            </div>
+            <div class="form-group">
+              <label for="batch-number">Batch Number</label>
+              <input type="text" id="batch-number" required />
+            </div>
+            <div class="form-group">
+              <label for="expiry-date">Expiry Date</label>
+              <input type="date" id="expiry-date" required />
+            </div>
+            <div class="form-group">
+              <label for="quantity">Quantity</label>
+              <input type="number" id="quantity" min="0" required />
+            </div>
+            <div class="form-group">
+              <label for="unit-price">Unit Price (KES)</label>
+              <input
+                type="number"
+                id="unit-price"
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="category">Category</label>
+              <select id="category" required>
+                <option value="">Select Category</option>
+                <option value="antibiotics">Antibiotics</option>
+                <option value="analgesics">Analgesics</option>
+                <option value="antineoplastics">Antineoplastics</option>
+                <option value="cardiovascular">Cardiovascular</option>
+                <option value="gastrointestinal">Gastrointestinal</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" id="cancel-btn">Cancel</button>
+          <button class="btn btn-primary" id="save-medicine-btn">
+            Save Medicine
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prescription Modal -->
+    <div class="modal" id="prescription-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Prescription Details</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="prescription-details">
+            <!-- Prescription details will be populated by JavaScript -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" id="close-prescription-btn">
+            Close
+          </button>
+          <button class="btn btn-success" id="dispense-prescription-btn">
+            Dispense
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restock Modal -->
+    <div class="modal" id="restock-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Restock Medicine</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="restock-form" class="modal-form">
+            <input type="hidden" id="restock-medicine-id" />
+            <div class="form-group">
+              <label for="restock-medicine-name">Medicine Name</label>
+              <input type="text" id="restock-medicine-name" readonly />
+            </div>
+            <div class="form-group">
+              <label for="current-quantity">Current Quantity</label>
+              <input type="text" id="current-quantity" readonly />
+            </div>
+            <div class="form-group">
+              <label for="restock-quantity">Quantity to Add</label>
+              <input type="number" id="restock-quantity" min="1" required />
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" id="cancel-restock-btn">Cancel</button>
+          <button class="btn btn-primary" id="confirm-restock-btn">
+            Restock
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/SCRIPTS/pharmacy.js"></script>
+  </body>
+</html>

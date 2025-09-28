@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lunar Cancer Care HMIS - Inventory</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --success: #2ecc71;
+        --warning: #f39c12;
+        --light: #ecf0f1;
+        --dark: #2c3e50;
+        --gray: #95a5a6;
+        --admin: #9b59b6;
+        --doctor: #3498db;
+        --nurse: #2ecc71;
+        --pharmacist: #f39c12;
+        --cashier: #e67e22;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      body {
+        background-color: #f5f7fa;
+        color: #333;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+
+      .container {
+        display: flex;
+        flex: 1;
+      }
+
+      /* Sidebar Styles */
+      .sidebar {
+        width: 250px;
+        background: var(--primary);
+        color: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .sidebar-header {
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.2);
+        display: flex;
+        align-items: center;
+      }
+
+      .sidebar-header img {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+      }
+
+      .sidebar-header h2 {
+        font-size: 1.2rem;
+        font-weight: 600;
+      }
+
+      .sidebar-menu {
+        padding: 15px 0;
+      }
+
+      .sidebar-menu ul {
+        list-style: none;
+      }
+
+      .sidebar-menu li {
+        padding: 0;
+        margin: 5px 0;
+      }
+
+      .sidebar-menu a {
+        color: white;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        transition: all 0.3s;
+      }
+
+      .sidebar-menu a:hover,
+      .sidebar-menu a.active {
+        background: rgba(255, 255, 255, 0.1);
+        border-left: 4px solid var(--secondary);
+      }
+
+      .sidebar-menu i {
+        margin-right: 10px;
+        font-size: 1.1rem;
+      }
+
+      /* Main Content Styles */
+      .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Header Styles */
+      header {
+        background: white;
+        padding: 15px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .user-info {
+        display: flex;
+        align-items: center;
+      }
+
+      .user-info img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-right: 10px;
+      }
+
+      .user-details h3 {
+        font-size: 1rem;
+        margin-bottom: 3px;
+      }
+
+      .user-details p {
+        font-size: 0.8rem;
+        color: var(--gray);
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+      }
+
+      .header-actions .notification {
+        position: relative;
+        margin-right: 20px;
+        cursor: pointer;
+      }
+
+      .header-actions .notification .badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: var(--accent);
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 0.7rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .header-actions .btn-logout {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.3s;
+      }
+
+      .header-actions .btn-logout:hover {
+        background: var(--secondary);
+      }
+
+      /* Inventory Content Styles */
+      .inventory-content {
+        padding: 20px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .breadcrumb {
+        font-size: 0.9rem;
+        color: var(--gray);
+        margin-bottom: 10px;
+      }
+
+      .breadcrumb a {
+        color: var(--secondary);
+        text-decoration: none;
+      }
+
+      .breadcrumb a:hover {
+        text-decoration: underline;
+      }
+
+      .page-title {
+        font-size: 1.8rem;
+        color: var(--primary);
+        font-weight: 600;
+        margin: 5px 0 15px;
+      }
+
+      .page-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .btn {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s;
+      }
+
+      .btn-primary {
+        background: var(--secondary);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: var(--primary);
+      }
+
+      .btn-success {
+        background: var(--success);
+        color: white;
+      }
+
+      .btn-success:hover {
+        background: #27ae60;
+      }
+
+      .btn-warning {
+        background: var(--warning);
+        color: white;
+      }
+
+      .btn-warning:hover {
+        background: #e67e22;
+      }
+
+      /* Alerts Section */
+      .alerts-section {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .alert-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .alert-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+      }
+
+      .alert-icon.low {
+        background: var(--warning);
+      }
+
+      .alert-icon.expired {
+        background: var(--accent);
+      }
+
+      .alert-icon.out {
+        background: var(--accent);
+      }
+
+      .alert-content h3 {
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+      }
+
+      .alert-content p {
+        color: var(--gray);
+        font-size: 0.9rem;
+      }
+
+      /* Search Section */
+      .search-section {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        margin-bottom: 20px;
+      }
+
+      .search-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+
+      .search-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+      }
+
+      .search-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr auto;
+        gap: 15px;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .form-group label {
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+
+      .form-group input,
+      .form-group select {
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus {
+        border-color: var(--secondary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+      }
+
+      .search-btn {
+        align-self: flex-end;
+        padding: 12px 20px;
+        background: var(--secondary);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+
+      /* Inventory Table */
+      .inventory-table-container {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        margin-bottom: 20px;
+        overflow-x: auto;
+      }
+
+      .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+
+      .table-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+      }
+
+      .table-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .inventory-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .inventory-table th,
+      .inventory-table td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+      }
+
+      .inventory-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .inventory-table th:hover {
+        background: #e9ecef;
+      }
+
+      .inventory-table tr:hover {
+        background: #f8f9fa;
+      }
+
+      .category-badge {
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: white;
+      }
+
+      .category-drug {
+        background: var(--secondary);
+      }
+
+      .category-consumable {
+        background: var(--success);
+      }
+
+      .category-equipment {
+        background: var(--admin);
+      }
+
+      .status-badge {
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+
+      .status-instock {
+        background: rgba(46, 204, 113, 0.2);
+        color: var(--success);
+      }
+
+      .status-low {
+        background: rgba(243, 156, 18, 0.2);
+        color: var(--warning);
+      }
+
+      .status-out {
+        background: rgba(231, 76, 60, 0.2);
+        color: var(--accent);
+      }
+
+      .status-expired {
+        background: rgba(231, 76, 60, 0.2);
+        color: var(--accent);
+      }
+
+      .action-cell {
+        display: flex;
+        gap: 8px;
+      }
+
+      .action-btn {
+        padding: 6px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .btn-view {
+        background: rgba(52, 152, 219, 0.2);
+        color: var(--secondary);
+      }
+
+      .btn-edit {
+        background: rgba(46, 204, 113, 0.2);
+        color: var(--success);
+      }
+
+      .btn-delete {
+        background: rgba(231, 76, 60, 0.2);
+        color: var(--accent);
+      }
+
+      .btn-restock {
+        background: rgba(155, 89, 182, 0.2);
+        color: var(--admin);
+      }
+
+      /* Pagination */
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+      }
+
+      .pagination-info {
+        font-size: 0.9rem;
+        color: var(--gray);
+      }
+
+      .pagination-controls {
+        display: flex;
+        gap: 8px;
+      }
+
+      .pagination-btn {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      .pagination-btn.active {
+        background: var(--secondary);
+        color: white;
+        border-color: var(--secondary);
+      }
+
+      /* Inventory Modal */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 800px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--gray);
+      }
+
+      .modal-body {
+        padding: 20px;
+      }
+
+      .modal-tabs {
+        display: flex;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 20px;
+      }
+
+      .tab-btn {
+        padding: 10px 20px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--gray);
+        border-bottom: 3px solid transparent;
+      }
+
+      .tab-btn.active {
+        color: var(--secondary);
+        border-bottom-color: var(--secondary);
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+
+      .form-full {
+        grid-column: 1 / -1;
+      }
+
+      .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+      }
+
+      /* Footer Styles */
+      footer {
+        background: var(--primary);
+        color: white;
+        padding: 30px 20px;
+        margin-top: auto;
+      }
+
+      .footer-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .footer-section h3 {
+        font-size: 1.2rem;
+        margin-bottom: 15px;
+        position: relative;
+        padding-bottom: 10px;
+      }
+
+      .footer-section h3::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 50px;
+        height: 2px;
+        background: var(--secondary);
+      }
+
+      .footer-links {
+        list-style: none;
+      }
+
+      .footer-links li {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+      }
+
+      .footer-links a {
+        color: #ecf0f1;
+        text-decoration: none;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .footer-links a:hover {
+        color: var(--secondary);
+        padding-left: 5px;
+      }
+
+      .contact-info {
+        list-style: none;
+      }
+
+      .contact-info li {
+        margin-bottom: 15px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .contact-info i {
+        margin-top: 5px;
+      }
+
+      .footer-bottom {
+        text-align: center;
+        padding-top: 20px;
+        margin-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      /* Responsive Styles */
+      @media (max-width: 1200px) {
+        .search-form {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .alerts-section {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 992px) {
+        .search-form {
+          grid-template-columns: 1fr;
+        }
+
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .footer-content {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .alerts-section {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          flex-direction: column;
+        }
+
+        .sidebar {
+          width: 100%;
+          height: auto;
+        }
+
+        .sidebar-menu ul {
+          display: flex;
+          overflow-x: auto;
+        }
+
+        .sidebar-menu li {
+          flex: 0 0 auto;
+        }
+
+        .page-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 15px;
+        }
+
+        .page-actions {
+          width: 100%;
+          flex-wrap: wrap;
+        }
+
+        .table-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 15px;
+        }
+
+        .table-actions {
+          width: 100%;
+          flex-wrap: wrap;
+        }
+
+        .pagination {
+          flex-direction: column;
+          gap: 15px;
+        }
+
+        header {
+          flex-direction: column;
+          text-align: center;
+          padding: 15px;
+        }
+
+        .user-info {
+          margin-bottom: 15px;
+        }
+
+        .footer-content {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 576px) {
+        .action-cell {
+          flex-direction: column;
+        }
+
+        .modal-content {
+          width: 95%;
+        }
+
+        .alert-card {
+          flex-direction: column;
+          text-align: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <img
+            src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjIgMTJoLTQiPjwvcGF0aD48cGF0aCBkPSJNNiAxMmg0Ij48L3BhdGg+PHJlY3QgeD0iMyIgeT0iNSIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE0IiByeD0iMiIgcnk9IjIiPjwvcmVjdD48cGF0aCBkPSJNMTIgMTB20iPjwvcGF0aD48L3N2Zz4="
+            alt="Logo"
+          />
+          <h2>Lunar Cancer Care</h2>
+        </div>
+        <div class="sidebar-menu">
+          <ul>
+            <li>
+              <a href="dashboard.html"><i class="fas fa-home"></i> Dashboard</a>
+            </li>
+            <li>
+              <a href="patients.html"
+                ><i class="fas fa-user-injured"></i> Patients</a
+              >
+            </li>
+            <li>
+              <a href="appointments.html"
+                ><i class="fas fa-calendar-check"></i> Appointments</a
+              >
+            </li>
+            <li>
+              <a href="inventory.html" class="active"
+                ><i class="fas fa-pills"></i> Inventory</a
+              >
+            </li>
+            <li>
+              <a href="pharmacy.html" class="active"
+                ><i class="fas fa-prescription"></i> Pharmacy</a
+              >
+            </li>
+            <li>
+              <a href="staff.html"><i class="fas fa-user-md"></i> Staff</a>
+            </li>
+            <li>
+              <a href="invoice.html"
+                ><i class="fas fa-file-invoice-dollar"></i> Billing</a
+              >
+            </li>
+            <li>
+              <a href="reports.html"
+                ><i class="fas fa-chart-bar"></i> Reports</a
+              >
+            </li>
+            <li>
+              <a href="settings.html"><i class="fas fa-cog"></i> Settings</a>
+            </li>
+            <li>
+              <a href="index.html"
+                ><i class="fas fa-sign-out-alt"></i> Logout</a
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Header -->
+        <header>
+          <div class="user-info">
+            <img
+              src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmMzljMTIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+"
+              alt="User"
+            />
+            <div class="user-details">
+              <h3>Pharmacist John</h3>
+              <p>Pharmacy Department</p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <div class="notification">
+              <i class="fas fa-bell"></i>
+              <span class="badge">7</span>
+            </div>
+            <button class="btn-logout" onclick="logout()">Logout</button>
+          </div>
+        </header>
+
+        <!-- Inventory Content -->
+        <div class="inventory-content">
+          <div class="page-header">
+            <div>
+              <div class="breadcrumb">
+                <a href="dashboard.html">Dashboard</a> > Inventory
+              </div>
+              <h1 class="page-title">Inventory Management</h1>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-primary" onclick="openModal()">
+                <i class="fas fa-plus"></i> Add New Item
+              </button>
+              <button class="btn btn-success">
+                <i class="fas fa-file-export"></i> Export CSV
+              </button>
+              <button class="btn btn-warning">
+                <i class="fas fa-file-pdf"></i> Export PDF
+              </button>
+            </div>
+          </div>
+
+          <!-- Alerts Section -->
+          <div class="alerts-section">
+            <div class="alert-card">
+              <div class="alert-icon low">
+                <i class="fas fa-exclamation-triangle"></i>
+              </div>
+              <div class="alert-content">
+                <h3>Low Stock Alert</h3>
+                <p>5 items are running low and need restocking</p>
+              </div>
+            </div>
+            <div class="alert-card">
+              <div class="alert-icon expired">
+                <i class="fas fa-calendar-times"></i>
+              </div>
+              <div class="alert-content">
+                <h3>Expiry Alert</h3>
+                <p>3 items will expire in the next 30 days</p>
+              </div>
+            </div>
+            <div class="alert-card">
+              <div class="alert-icon out">
+                <i class="fas fa-times-circle"></i>
+              </div>
+              <div class="alert-content">
+                <h3>Out of Stock</h3>
+                <p>2 items are currently out of stock</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Search Section -->
+          <div class="search-section">
+            <div class="search-header">
+              <h2 class="search-title">Search & Filter Inventory</h2>
+            </div>
+            <div class="search-form">
+              <div class="form-group">
+                <label for="search-term">Item Name/ID</label>
+                <input
+                  type="text"
+                  id="search-term"
+                  placeholder="Enter name or ID"
+                />
+              </div>
+              <div class="form-group">
+                <label for="filter-category">Category</label>
+                <select id="filter-category">
+                  <option value="">All Categories</option>
+                  <option value="drug">Drugs</option>
+                  <option value="consumable">Consumables</option>
+                  <option value="equipment">Equipment</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="filter-status">Stock Status</label>
+                <select id="filter-status">
+                  <option value="">All Statuses</option>
+                  <option value="instock">In Stock</option>
+                  <option value="low">Low Stock</option>
+                  <option value="out">Out of Stock</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+              <button class="search-btn">Search</button>
+            </div>
+          </div>
+
+          <!-- Inventory Table -->
+          <div class="inventory-table-container">
+            <div class="table-header">
+              <h2 class="table-title">Inventory Items</h2>
+              <div class="table-actions">
+                <select>
+                  <option>Sort by: Name A-Z</option>
+                  <option>Sort by: Name Z-A</option>
+                  <option>Sort by: Quantity (High to Low)</option>
+                  <option>Sort by: Quantity (Low to High)</option>
+                  <option>Sort by: Expiry Date</option>
+                </select>
+              </div>
+            </div>
+
+            <table class="inventory-table">
+              <thead>
+                <tr>
+                  <th>Item ID</th>
+                  <th>Item Name</th>
+                  <th>Category</th>
+                  <th>Quantity</th>
+                  <th>Unit</th>
+                  <th>Expiry Date</th>
+                  <th>Supplier</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>I1001</td>
+                  <td>Paclitaxel Injection</td>
+                  <td>
+                    <span class="category-badge category-drug">Drug</span>
+                  </td>
+                  <td>45</td>
+                  <td>vials</td>
+                  <td>15 Mar 2024</td>
+                  <td>MedSupplies Ltd</td>
+                  <td>
+                    <span class="status-badge status-instock">In Stock</span>
+                  </td>
+                  <td class="action-cell">
+                    <button class="action-btn btn-view">
+                      <i class="fas fa-eye"></i> View
+                    </button>
+                    <button class="action-btn btn-edit">
+                      <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="action-btn btn-restock">
+                      <i class="fas fa-cart-plus"></i> Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>I1002</td>
+                  <td>Chemo Gloves</td>
+                  <td>
+                    <span class="category-badge category-consumable"
+                      >Consumable</span
+                    >
+                  </td>
+                  <td>8</td>
+                  <td>pairs</td>
+                  <td>N/A</td>
+                  <td>SafeGear Inc</td>
+                  <td>
+                    <span class="status-badge status-low">Low Stock</span>
+                  </td>
+                  <td class="action-cell">
+                    <button class="action-btn btn-view">
+                      <i class="fas fa-eye"></i> View
+                    </button>
+                    <button class="action-btn btn-edit">
+                      <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="action-btn btn-restock">
+                      <i class="fas fa-cart-plus"></i> Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>I1003</td>
+                  <td>Cyclophosphamide Tablets</td>
+                  <td>
+                    <span class="category-badge category-drug">Drug</span>
+                  </td>
+                  <td>0</td>
+                  <td>tablets</td>
+                  <td>30 Jun 2024</td>
+                  <td>PharmaKenya</td>
+                  <td>
+                    <span class="status-badge status-out">Out of Stock</span>
+                  </td>
+                  <td class="action-cell">
+                    <button class="action-btn btn-view">
+                      <i class="fas fa-eye"></i> View
+                    </button>
+                    <button class="action-btn btn-edit">
+                      <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="action-btn btn-restock">
+                      <i class="fas fa-cart-plus"></i> Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>I1004</td>
+                  <td>Infusion Pump</td>
+                  <td>
+                    <span class="category-badge category-equipment"
+                      >Equipment</span
+                    >
+                  </td>
+                  <td>3</td>
+                  <td>units</td>
+                  <td>N/A</td>
+                  <td>MediTech Solutions</td>
+                  <td>
+                    <span class="status-badge status-instock">In Stock</span>
+                  </td>
+                  <td class="action-cell">
+                    <button class="action-btn btn-view">
+                      <i class="fas fa-eye"></i> View
+                    </button>
+                    <button class="action-btn btn-edit">
+                      <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="action-btn btn-restock">
+                      <i class="fas fa-cart-plus"></i> Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>I1005</td>
+                  <td>5-FU Cream</td>
+                  <td>
+                    <span class="category-badge category-drug">Drug</span>
+                  </td>
+                  <td>12</td>
+                  <td>tubes</td>
+                  <td>15 Dec 2025</td>
+                  <td>DermaCare Ltd</td>
+                  <td>
+                    <span class="status-badge status-expired">Expired</span>
+                  </td>
+                  <td class="action-cell">
+                    <button class="action-btn btn-view">
+                      <i class="fas fa-eye"></i> View
+                    </button>
+                    <button class="action-btn btn-edit">
+                      <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="action-btn btn-delete">
+                      <i class="fas fa-trash"></i> Dispose
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="pagination">
+              <div class="pagination-info">
+                Showing 1-5 of 48 inventory items
+              </div>
+              <div class="pagination-controls">
+                <button class="pagination-btn">&laquo; Previous</button>
+                <button class="pagination-btn active">1</button>
+                <button class="pagination-btn">2</button>
+                <button class="pagination-btn">3</button>
+                <button class="pagination-btn">4</button>
+                <button class="pagination-btn">5</button>
+                <button class="pagination-btn">Next &raquo;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer 
+    <footer>
+      <div class="footer-bottom">
+        <p>
+          &copy; 2025 Lunar Cancer Care HMIS. All rights reserved. | Designed
+          for better healthcare management
+        </p>
+      </div>
+    </footer>-->
+
+    <!-- Add/Edit Inventory Item Modal -->
+    <div class="modal" id="inventoryModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Add New Inventory Item</h2>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-tabs">
+            <button
+              class="tab-btn active"
+              onclick="openTab(event, 'basic-info')"
+            >
+              Basic Information
+            </button>
+            <button class="tab-btn" onclick="openTab(event, 'supplier-info')">
+              Supplier Information
+            </button>
+            <button class="tab-btn" onclick="openTab(event, 'pricing-info')">
+              Pricing & Stock
+            </button>
+          </div>
+
+          <div id="basic-info" class="tab-content active">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="item-name">Item Name</label>
+                <input
+                  type="text"
+                  id="item-name"
+                  placeholder="Enter item name"
+                />
+              </div>
+              <div class="form-group">
+                <label for="item-id">Item ID</label>
+                <input type="text" id="item-id" placeholder="Enter item ID" />
+              </div>
+              <div class="form-group">
+                <label for="category">Category</label>
+                <select id="category">
+                  <option value="">Select Category</option>
+                  <option value="drug">Drug</option>
+                  <option value="consumable">Consumable</option>
+                  <option value="equipment">Equipment</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="quantity">Quantity</label>
+                <input
+                  type="number"
+                  id="quantity"
+                  placeholder="Enter quantity"
+                />
+              </div>
+              <div class="form-group">
+                <label for="unit">Unit</label>
+                <select id="unit">
+                  <option value="">Select Unit</option>
+                  <option value="vials">Vials</option>
+                  <option value="tablets">Tablets</option>
+                  <option value="pairs">Pairs</option>
+                  <option value="units">Units</option>
+                  <option value="tubes">Tubes</option>
+                  <option value="liters">Liters</option>
+                  <option value="boxes">Boxes</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="expiry-date">Expiry Date</label>
+                <input type="date" id="expiry-date" />
+              </div>
+              <div class="form-group form-full">
+                <label for="description">Description</label>
+                <textarea
+                  id="description"
+                  rows="3"
+                  placeholder="Enter item description"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div id="supplier-info" class="tab-content">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="supplier-name">Supplier Name</label>
+                <input
+                  type="text"
+                  id="supplier-name"
+                  placeholder="Enter supplier name"
+                />
+              </div>
+              <div class="form-group">
+                <label for="supplier-contact">Supplier Contact</label>
+                <input
+                  type="text"
+                  id="supplier-contact"
+                  placeholder="Enter supplier contact"
+                />
+              </div>
+              <div class="form-group">
+                <label for="supplier-email">Supplier Email</label>
+                <input
+                  type="email"
+                  id="supplier-email"
+                  placeholder="Enter supplier email"
+                />
+              </div>
+              <div class="form-group">
+                <label for="batch-number">Batch/Lot Number</label>
+                <input
+                  type="text"
+                  id="batch-number"
+                  placeholder="Enter batch number"
+                />
+              </div>
+              <div class="form-group">
+                <label for="manufacturer">Manufacturer</label>
+                <input
+                  type="text"
+                  id="manufacturer"
+                  placeholder="Enter manufacturer"
+                />
+              </div>
+              <div class="form-group">
+                <label for="manufacture-date">Manufacture Date</label>
+                <input type="date" id="manufacture-date" />
+              </div>
+            </div>
+          </div>
+
+          <div id="pricing-info" class="tab-content">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="cost-price">Cost Price (KES)</label>
+                <input
+                  type="number"
+                  id="cost-price"
+                  placeholder="Enter cost price"
+                />
+              </div>
+              <div class="form-group">
+                <label for="selling-price">Selling Price (KES)</label>
+                <input
+                  type="number"
+                  id="selling-price"
+                  placeholder="Enter selling price"
+                />
+              </div>
+              <div class="form-group">
+                <label for="reorder-level">Reorder Level</label>
+                <input
+                  type="number"
+                  id="reorder-level"
+                  placeholder="Enter reorder level"
+                />
+              </div>
+              <div class="form-group">
+                <label for="minimum-stock">Minimum Stock</label>
+                <input
+                  type="number"
+                  id="minimum-stock"
+                  placeholder="Enter minimum stock"
+                />
+              </div>
+              <div class="form-group">
+                <label for="tax-rate">Tax Rate (%)</label>
+                <input
+                  type="number"
+                  id="tax-rate"
+                  placeholder="Enter tax rate"
+                  value="16"
+                />
+              </div>
+              <div class="form-group">
+                <label for="insurance-covered">Insurance Covered</label>
+                <select id="insurance-covered">
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                  <option value="partial">Partial</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary">Save Inventory Item</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Footer -->
+    <footer>
+      <div class="footer-bottom">
+        <p>
+          &copy; 2025 Lunar Cancer Care HMIS. All rights reserved. | Designed
+          for better healthcare management
+        </p>
+        <p style="margin: 0; font-size: 13px; color: #777">
+          Crafted with <span style="color: red">❤</span> by
+          <a
+            href="https://wa.me/254723562484?text=Hello%20there,%20I%20Need%20a%20SoftWare"
+            target="_blank"
+            style="
+              color: rgb(3, 184, 245);
+              text-decoration: none;
+              font-weight: 500;
+            "
+          >
+            @Saraha_Devs
+          </a>
+        </p>
+      </div>
+    </footer>
+
+    <script src="/SCRIPTS/inventory.js"></script>
+  </body>
+</html>
