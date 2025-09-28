@@ -12,7 +12,6 @@ export const getAllAppointments = async (req, res) => {
   }
 };
 
-// Get single appointment
 // Get all appointments for a specific patient
 export const getAppointmentsByPatient = async (req, res) => {
   try {
@@ -33,6 +32,22 @@ export const getAppointmentsByPatient = async (req, res) => {
   }
 };
 
+// Get single appointment by ID
+export const getAppointmentById = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id)
+      .populate("patient", "firstName lastName")
+      .populate("doctor", "name role");
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    res.json(appointment);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching appointment", error: err.message });
+  }
+};
 
 // Create new appointment
 export const createAppointment = async (req, res) => {
