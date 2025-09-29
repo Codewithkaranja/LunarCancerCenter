@@ -3,9 +3,9 @@ import Prescription from '../models/Prescription.js';
 import Patient from '../models/Patient.js';
 import Inventory from '../models/Inventory.js';
 
-// @desc    Create a prescription (draft or submitted)
-// @route   POST /api/prescriptions
-// @access  Doctor, Admin
+// ==========================
+// Create Prescription
+// ==========================
 export const createPrescription = async (req, res) => {
   try {
     const { patientId, items, status, billStatus } = req.body;
@@ -14,31 +14,37 @@ export const createPrescription = async (req, res) => {
       return res.status(400).json({ message: 'Patient and medications are required' });
     }
 
+    // Map items to inventory references
+    const mappedItems = items.map(item => ({
+      medication: item.medicationId, // must match frontend field
+      dosage: item.dosage,
+      frequency: item.frequency,
+      duration: item.duration,
+      quantity: item.quantity,
+      instructions: item.instructions,
+    }));
+
     const prescription = await Prescription.create({
       patientId,
-      // doctorId: req.user?.id || null, // enable when auth is active
-      items: items.map(item => ({
-        medication: item.medicationId, // 👈 Inventory _id
-        dosage: item.dosage,
-        frequency: item.frequency,
-        duration: item.duration,
-        quantity: item.quantity,
-        instructions: item.instructions,
-      })),
+      items: mappedItems,
       status: status || 'draft',
       billStatus: billStatus || 'pending',
     });
 
-    res.status(201).json(prescription);
+    const populatedPrescription = await prescription
+      .populate('patientId', 'firstName lastName')
+      .populate('items.medication', 'name category quantity unit');
+
+    res.status(201).json(populatedPrescription);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to create prescription', error });
   }
 };
 
-// @desc    Get all prescriptions (with optional filters)
-// @route   GET /api/prescriptions
-// @access  Doctor, Admin, Pharmacist, Cashier
+// ==========================
+// Get All Prescriptions
+// ==========================
 export const getAllPrescriptions = async (req, res) => {
   try {
     const { status, dateFrom, dateTo } = req.query;
@@ -50,7 +56,7 @@ export const getAllPrescriptions = async (req, res) => {
     if (dateTo) filter.createdAt.$lte = new Date(dateTo);
 
     const prescriptions = await Prescription.find(filter)
-      .populate('patientId', 'name')
+      .populate('patientId', 'firstName lastName')
       .populate('items.medication', 'name category quantity unit');
 
     res.json(prescriptions);
@@ -60,13 +66,13 @@ export const getAllPrescriptions = async (req, res) => {
   }
 };
 
-// @desc    Get prescription by ID
-// @route   GET /api/prescriptions/:id
-// @access  Doctor, Admin, Pharmacist
+// ==========================
+// Get Prescription By ID
+// ==========================
 export const getPrescriptionById = async (req, res) => {
   try {
     const prescription = await Prescription.findById(req.params.id)
-      .populate('patientId', 'name')
+      .populate('patientId', 'firstName lastName')
       .populate('items.medication', 'name category quantity unit');
 
     if (!prescription) return res.status(404).json({ message: 'Prescription not found' });
@@ -78,9 +84,9 @@ export const getPrescriptionById = async (req, res) => {
   }
 };
 
-// @desc    Update prescription (edit, reissue, or dispense)
-// @route   PUT /api/prescriptions/:id
-// @access  Doctor, Admin, Pharmacist
+// ==========================
+// Update Prescription
+// ==========================
 export const updatePrescription = async (req, res) => {
   try {
     const prescription = await Prescription.findById(req.params.id);
@@ -88,7 +94,7 @@ export const updatePrescription = async (req, res) => {
 
     const { items, status, billStatus } = req.body;
 
-    // Update items
+    // Update items if provided
     if (items) {
       prescription.items = items.map(item => ({
         medication: item.medicationId,
@@ -103,37 +109,45 @@ export const updatePrescription = async (req, res) => {
     if (status) prescription.status = status;
     if (billStatus) prescription.billStatus = billStatus;
 
-    // 👇 Auto deduct stock if dispensed
+    // ===== Batch stock validation & deduction if dispensed =====
     if (status === 'dispensed') {
+      // Validate all items first
       for (const item of prescription.items) {
         const inventoryItem = await Inventory.findById(item.medication);
         if (!inventoryItem) {
           return res.status(404).json({ message: `Inventory item not found for medicationId: ${item.medication}` });
         }
-
         if (inventoryItem.quantity < item.quantity) {
           return res.status(400).json({
             message: `Not enough stock for ${inventoryItem.name}. Available: ${inventoryItem.quantity}`,
           });
         }
+      }
 
-        // Deduct stock
+      // Deduct stock
+      for (const item of prescription.items) {
+        const inventoryItem = await Inventory.findById(item.medication);
         inventoryItem.quantity -= item.quantity;
         await inventoryItem.save();
       }
     }
 
     const updatedPrescription = await prescription.save();
-    res.json(updatedPrescription);
+
+    const populatedPrescription = await updatedPrescription
+      .populate('patientId', 'firstName lastName')
+      .populate('items.medication', 'name category quantity unit');
+
+    res.json(populatedPrescription);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to update prescription', error });
   }
 };
 
-// @desc    Cancel prescription
-// @route   DELETE /api/prescriptions/:id
-// @access  Admin
+// ==========================
+// Cancel Prescription
+// ==========================
 export const deletePrescription = async (req, res) => {
   try {
     const prescription = await Prescription.findById(req.params.id);

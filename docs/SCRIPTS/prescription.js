@@ -203,71 +203,54 @@ async function fetchMedications() {
 
       // Render prescription items
       function renderPrescriptionItems() {
-        prescriptionItemsContainer.innerHTML = "";
+  prescriptionItemsContainer.innerHTML = "";
 
-        prescriptionItems.forEach((item, index) => {
-          const row = document.createElement("tr");
+  prescriptionItems.forEach((item, index) => {
+    const row = document.createElement("tr");
 
-          // Create medication dropdown
-          const medicationSelect = document.createElement("select");
-          medications.forEach((med) => {
-            const option = document.createElement("option");
-            option.value = med.id;
-            option.textContent = med.name;
-            if (item.medication === med.name) option.selected = true;
-            medicationSelect.appendChild(option);
-          });
-          medicationSelect.addEventListener("change", (e) =>
-            updateMedication(index, e.target.value)
-          );
+    // Create medication dropdown
+    const medicationSelect = document.createElement("select");
+    medications.forEach((med) => {
+      const option = document.createElement("option");
+      option.value = med.id;          // backend _id
+      option.textContent = med.name;
+      if (item.medicationId === med.id) option.selected = true; // match by ID
+      medicationSelect.appendChild(option);
+    });
 
-          // Create table row
-          row.innerHTML = `
-            <td>
-              ${medicationSelect.outerHTML}
-              ${getStockWarning(item.medication)}
-            </td>
-            <td><input type="text" value="${
-              item.dosage
-            }" placeholder="Dosage" onchange="updateDosage(${index}, this.value)"></td>
-            <td>
-              <select onchange="updateFrequency(${index}, this.value)">
-                <option value="once" ${
-                  item.frequency === "once" ? "selected" : ""
-                }>Once daily</option>
-                <option value="twice" ${
-                  item.frequency === "twice" ? "selected" : ""
-                }>Twice daily</option>
-                <option value="thrice" ${
-                  item.frequency === "thrice" ? "selected" : ""
-                }>Three times daily</option>
-                <option value="four" ${
-                  item.frequency === "four" ? "selected" : ""
-                }>Four times daily</option>
-                <option value="asneeded" ${
-                  item.frequency === "asneeded" ? "selected" : ""
-                }>As needed</option>
-              </select>
-            </td>
-            <td><input type="text" value="${
-              item.duration
-            }" placeholder="Duration" onchange="updateDuration(${index}, this.value)"></td>
-            <td><input type="number" value="${
-              item.quantity
-            }" min="1" style="width: 60px" onchange="updateQuantity(${index}, this.value)"></td>
-            <td><input type="text" value="${
-              item.instructions
-            }" placeholder="Instructions" onchange="updateInstructions(${index}, this.value)"></td>
-            <td class="action-cell">
-              <button class="action-btn btn-remove" onclick="removeMedication(${index})">
-                <i class="fas fa-trash"></i>
-              </button>
-            </td>
-          `;
+    medicationSelect.addEventListener("change", (e) =>
+      updateMedication(index, e.target.value)
+    );
 
-          prescriptionItemsContainer.appendChild(row);
-        });
-      }
+    // Build row HTML
+    row.innerHTML = `
+      <td>
+        ${medicationSelect.outerHTML}
+        ${getStockWarning(item.medicationId)}
+      </td>
+      <td><input type="text" value="${item.dosage || ""}" placeholder="Dosage" onchange="updateDosage(${index}, this.value)"></td>
+      <td>
+        <select onchange="updateFrequency(${index}, this.value)">
+          <option value="once" ${item.frequency === "once" ? "selected" : ""}>Once daily</option>
+          <option value="twice" ${item.frequency === "twice" ? "selected" : ""}>Twice daily</option>
+          <option value="thrice" ${item.frequency === "thrice" ? "selected" : ""}>Three times daily</option>
+          <option value="four" ${item.frequency === "four" ? "selected" : ""}>Four times daily</option>
+          <option value="asneeded" ${item.frequency === "asneeded" ? "selected" : ""}>As needed</option>
+        </select>
+      </td>
+      <td><input type="text" value="${item.duration || ""}" placeholder="Duration" onchange="updateDuration(${index}, this.value)"></td>
+      <td><input type="number" value="${item.quantity || 1}" min="1" style="width: 60px" onchange="updateQuantity(${index}, this.value)"></td>
+      <td><input type="text" value="${item.instructions || ""}" placeholder="Instructions" onchange="updateInstructions(${index}, this.value)"></td>
+      <td class="action-cell">
+        <button class="action-btn btn-remove" onclick="removeMedication(${index})">
+          <i class="fas fa-trash"></i>
+        </button>
+      </td>
+    `;
+
+    prescriptionItemsContainer.appendChild(row);
+  });
+}
 
       // Render prescription history
       function renderPrescriptionHistory() {
@@ -330,19 +313,23 @@ async function fetchMedications() {
       }
 
       // Get stock warning if applicable
-      function getStockWarning(medicationName) {
-  const medication = medications.find((m) => m.name === medicationName);
+function getStockWarning(medicationId) {
+  // Find the medication in the local array using its ID
+  const medication = medications.find(m => m.id === medicationId);
   if (!medication) return "";
 
-  // Low stock warning
-  if (medication.stock < 20) {
-    return `<div class="stock-warning">
-              <i class="fas fa-exclamation-circle"></i> Low stock: ${medication.stock} remaining
-            </div>`;
+  // Show a warning if stock is low
+  if (medication.quantity < 20) {
+    return `
+      <div class="stock-warning">
+        <i class="fas fa-exclamation-circle"></i> Low stock: ${medication.quantity} remaining
+      </div>
+    `;
   }
 
-  return "";
+  return ""; // No warning if stock is sufficient
 }
+
 
 // Example: refresh stock after submitting prescription
 async function refreshStock() {
@@ -396,7 +383,7 @@ async function refreshStock() {
       }
 
       // Update medication
-   function updateMedication(index, medicationId) {
+  function updateMedication(index, medicationId) {
   const medication = medications.find((m) => m.id == medicationId);
   if (medication) {
     // Update prescription item
@@ -412,13 +399,15 @@ async function refreshStock() {
         warningDiv.className = "stock-warning";
         row.cells[0].appendChild(warningDiv);
       }
-      warningDiv.innerHTML = getStockWarning(medication.name);
+      // ✅ Pass medication ID, not name
+      warningDiv.innerHTML = getStockWarning(medication.id);
     }
 
     // Check drug interactions
     checkDrugInteractions();
   }
 }
+
 
 
 
@@ -466,33 +455,88 @@ async function refreshStock() {
 
       // Update patient info based on selection
       let selectedPatientId = ""; // global variable
+// Global variables
+let patients = []; // fetched from backend
+let selectedPatientId = ""; // currently selected patient
 
+// Fetch patients from backend
+async function fetchPatients() {
+  try {
+    // const token = localStorage.getItem("authToken"); // uncomment for auth
+    const res = await fetch("https://lunar-hmis-backend.onrender.com/api/patients", {
+      headers: {
+        "Content-Type": "application/json",
+        // "Authorization": `Bearer ${token}`
+      }
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch patients");
+
+    patients = await res.json();
+
+    // Populate the select dropdown
+    const patientSelect = document.getElementById("patient-select");
+    if (!patientSelect) return;
+
+    patientSelect.innerHTML = `<option value="">Select Patient</option>`; // default
+    patients.forEach(p => {
+      const option = document.createElement("option");
+      option.value = p._id; // backend MongoDB ID
+      option.textContent = p.name; // display name
+      patientSelect.appendChild(option);
+    });
+  } catch (err) {
+    console.error(err);
+    const errorContainer = document.getElementById("error-message");
+    if (errorContainer) {
+      errorContainer.textContent = "Error fetching patients from backend.";
+      errorContainer.style.display = "block";
+    }
+  }
+}
+// Update patient info when selection changes
 function updatePatientInfo() {
   const patientSelect = document.getElementById("patient-select");
-  const selectedPatient = patientSelect.value;
+  const selectedId = patientSelect.value;
 
-  if (selectedPatient === "patient1") {
-    selectedPatientId = "64a3f1b2abc12345d6789012"; // real MongoDB ID
-    document.getElementById("patient-info-name").textContent = "John Doe";
-    document.getElementById("patient-info-id").textContent = "P12345";
-    document.getElementById("patient-info-age").textContent = "42 years, Male";
-    document.getElementById("patient-info-last-visit").textContent = "15 Nov 2025";
-    document.getElementById("patient-info-allergies").textContent = "Penicillin, Sulfa drugs";
-    document.getElementById("patient-info-current-meds").textContent = "Metformin, Lisinopril";
-  } else if (selectedPatient === "patient2") {
-    selectedPatientId = "64a3f1b2abc12345d6789013"; // real MongoDB ID
-    document.getElementById("patient-info-name").textContent = "Mary Smith";
-    document.getElementById("patient-info-id").textContent = "P12346";
-    document.getElementById("patient-info-age").textContent = "38 years, Female";
-    document.getElementById("patient-info-last-visit").textContent = "12 Nov 2025";
-    document.getElementById("patient-info-allergies").textContent = "None";
-    document.getElementById("patient-info-current-meds").textContent = "Tamoxifen";
+  const patient = patients.find(p => p._id === selectedId);
+
+  if (patient) {
+    selectedPatientId = patient._id;
+
+    document.getElementById("patient-info-name").textContent = patient.name || "N/A";
+    document.getElementById("patient-info-id").textContent = patient.patientCode || "N/A";
+    document.getElementById("patient-info-age").textContent = `${patient.age || "N/A"} years, ${patient.gender || "N/A"}`;
+    document.getElementById("patient-info-last-visit").textContent = patient.lastVisit || "N/A";
+    document.getElementById("patient-info-allergies").textContent = patient.allergies?.join(", ") || "None";
+    document.getElementById("patient-info-current-meds").textContent = patient.currentMeds?.join(", ") || "None";
+  } else {
+    selectedPatientId = "";
+    document.getElementById("patient-info-name").textContent = "";
+    document.getElementById("patient-info-id").textContent = "";
+    document.getElementById("patient-info-age").textContent = "";
+    document.getElementById("patient-info-last-visit").textContent = "";
+    document.getElementById("patient-info-allergies").textContent = "";
+    document.getElementById("patient-info-current-meds").textContent = "";
   }
 
-  // Check for drug interactions
+  // Check for drug interactions after selection
   checkDrugInteractions();
 }
 
+// Initialize patients and attach listener
+function initPatients() {
+  fetchPatients();
+  const patientSelect = document.getElementById("patient-select");
+  if (patientSelect) {
+    patientSelect.addEventListener("change", updatePatientInfo);
+  }
+}
+
+// Call this inside your main init function
+document.addEventListener("DOMContentLoaded", () => {
+  initPatients();
+});
    // Save prescription as draft
 async function saveDraft() {
   if (!userRoles[currentUserRole].prescriptions.create) {
@@ -500,41 +544,50 @@ async function saveDraft() {
     return;
   }
 
+  const medicationsList = prescriptionItems.filter(item => item.medicationId && item.quantity > 0);
+  if (!selectedPatientId || medicationsList.length === 0) {
+    alert("Please select a patient and add at least one medication.");
+    return;
+  }
+
   const payload = {
-   patientId: selectedPatientId,
-   items: prescriptionItems.map(item => ({
-  medication: item.medication,
-  dosage: item.dosage,
-  frequency: item.frequency,
-  duration: item.duration,
-  quantity: item.quantity,
-  instructions: item.instructions
-}))
-,
+    patientId: selectedPatientId,
+    items: prescriptionItems.map(item => ({
+      medicationId: item.medicationId, // use ID instead of name
+      dosage: item.dosage,
+      frequency: item.frequency,
+      duration: item.duration,
+      quantity: item.quantity,
+      instructions: item.instructions
+    })),
     status: "draft",
     billStatus: "pending"
   };
 
   try {
-   const res = await fetch('https://lunar-hmis-backend.onrender.com/api/prescriptions', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    //'Authorization': `Bearer ${token}` // your token in test mode or real token later
-  },
-  body: JSON.stringify(payload)
-});
+    const res = await fetch('https://lunar-hmis-backend.onrender.com/api/prescriptions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // 'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
 
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || "Failed to save draft");
+    }
 
-    if (!res.ok) throw new Error("Failed to save draft");
     const data = await res.json();
     alert("Prescription saved as draft successfully!");
     await fetchPrescriptionHistory();
   } catch (err) {
     console.error(err);
-    alert("Unsuccessful");
+    alert(`Failed to save draft: ${err.message}`);
   }
 }
+
 
 // Submit prescription to pharmacy
 // Global token (replace with your real token)
@@ -549,7 +602,7 @@ async function submitToPharmacy() {
 
   const patientName = document.getElementById("patient-info-name")?.textContent || "";
   const medicationsList = prescriptionItems
-    .filter(item => item.medication && item.quantity > 0);
+    .filter(item => item.medicationId && item.quantity > 0); // use medicationId
 
   if (!patientName || medicationsList.length === 0) {
     alert("Please select a patient and add at least one medication.");
@@ -557,18 +610,15 @@ async function submitToPharmacy() {
   }
 
   const payload = {
-    patientId: selectedPatientId, // store this when user selects a patient
-    items: prescriptionItems.map(item => {
-      const med = medications.find(m => m.name === item.medication);
-      return {
-        medicationId: med?.id, // use ID instead of name
-        dosage: item.dosage,
-        frequency: item.frequency,
-        duration: item.duration,
-        quantity: item.quantity,
-        instructions: item.instructions
-      };
-    }),
+    patientId: selectedPatientId,
+    items: prescriptionItems.map(item => ({
+      medicationId: item.medicationId, // use ID
+      dosage: item.dosage,
+      frequency: item.frequency,
+      duration: item.duration,
+      quantity: item.quantity,
+      instructions: item.instructions
+    })),
     status: "submitted",
     billStatus: "pending"
   };
@@ -578,12 +628,15 @@ async function submitToPharmacy() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        //'Authorization': `Bearer ${token}` // use your token here
+        // 'Authorization': `Bearer ${token}` // optional for auth
       },
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error("Failed to submit prescription");
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || "Failed to submit prescription");
+    }
 
     const data = await res.json();
     alert("Prescription submitted to pharmacy successfully!");
@@ -591,11 +644,11 @@ async function submitToPharmacy() {
     // Refresh prescription history
     await fetchPrescriptionHistory();
 
-    // ✅ Refresh stock so table shows updated stock
+    // Refresh stock table to show updated inventory
     await refreshStock();
   } catch (err) {
     console.error(err);
-    alert("Error submitting prescription.");
+    alert(`Error submitting prescription: ${err.message}`);
   }
 }
 
@@ -727,11 +780,13 @@ async function viewPrescription(prescriptionId) {
       <div class="form-group">
         <label>Medications</label>
         <ul>
-          ${prescription.items.map(item => `
-            <li>
-              ${item.medication} - ${item.dosage}, ${item.frequency}, ${item.duration}, Qty: ${item.quantity}
-              <br><small>${item.instructions}</small>
-            </li>`).join("")}
+          // example in viewPrescription()
+${prescription.items.map(item => `
+  <li>
+    ${item.medication?.name || "Unknown"} - ${item.dosage}, ${item.frequency}, ${item.duration}, Qty: ${item.quantity}
+    <br><small>${item.instructions}</small>
+  </li>`).join("")}
+
         </ul>
       </div>
       <div class="form-group">

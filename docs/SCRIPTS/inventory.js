@@ -1,6 +1,68 @@
 // ==========================
 // inventory.js (Backend Integrated & Cleaned)
 // ==========================
+// Helper: Update inventory for pharmacy/prescription linkage
+// Helper: Update inventory for pharmacy/prescription linkage
+async function updatePharmacyInventory(itemId, quantityUsed = 0) {
+  if (quantityUsed <= 0) return; // nothing to update
+
+  try {
+    // POST request to backend endpoint that handles inventory deduction
+    const res = await fetch(`${BASE_URL}/inventory/pharmacy/dispense`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId, quantity: quantityUsed }),
+    });
+
+    if (!res.ok) {
+      const errMsg = await res.json();
+      console.warn(`Failed to update pharmacy inventory: ${errMsg.message}`);
+      return;
+    }
+
+    // Update local inventory table
+    const updatedItem = await res.json();
+    const index = inventory.findIndex(i => i.id === updatedItem.id);
+    if (index > -1) inventory[index] = updatedItem;
+
+    renderTable();
+  } catch (err) {
+    console.error("Error updating pharmacy inventory:", err);
+  }
+}
+// ==========================
+// Refresh inventory from backend
+// ==========================
+// ==========================
+// Refresh Inventory & Reports
+// ==========================
+async function refreshInventory() {
+  try {
+    const res = await fetch(`${BASE_URL}/inventory`);
+    if (!res.ok) throw new Error("Failed to fetch inventory");
+
+    inventory = await res.json();
+
+    // Sync with reportData
+    reportData = inventory.map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      unit: item.unit,
+      expiry: item.expiry || "N/A",
+      supplier: item.supplier || "Unknown",
+      status: item.status
+    }));
+
+    renderTable();
+  } catch (err) {
+    console.error("Error refreshing inventory:", err);
+  }
+}
+
+
+
 
 document.addEventListener("DOMContentLoaded", function () {
   const BASE_URL = "https://lunar-hmis-backend.onrender.com/api";
@@ -185,7 +247,42 @@ document.querySelector(".table-actions select").addEventListener("change", (e) =
 // ==========================
 // Modal Handling
 // ==========================
-function openModal() { document.getElementById("inventoryModal").style.display = "block"; }
+// ==========================
+// Modal Tab Navigation
+// ==========================
+function openTab(event, tabId) {
+  // Hide all tab contents
+  document.querySelectorAll(".tab-content").forEach(tab => {
+    tab.classList.remove("active");
+    tab.style.display = "none";
+  });
+
+  // Remove active class from all tab buttons
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.classList.remove("active");
+  });
+
+  // Show selected tab
+  const selectedTab = document.getElementById(tabId);
+  selectedTab.style.display = "block";
+  selectedTab.classList.add("active");
+
+  // Activate the clicked button
+  event.currentTarget.classList.add("active");
+}
+
+// Initialize modal to start on Basic Info
+function openModal() {
+  document.getElementById("inventoryModal").style.display = "block";
+  // Default to first tab
+  document.querySelectorAll(".tab-content").forEach((tab, i) => {
+    tab.style.display = i === 0 ? "block" : "none";
+  });
+  document.querySelectorAll(".tab-btn").forEach((btn, i) => {
+    btn.classList.toggle("active", i === 0);
+  });
+}
+//function openModal() { document.getElementById("inventoryModal").style.display = "block"; }
 function closeModal() { document.getElementById("inventoryModal").style.display = "none"; }
 
 // ==========================
@@ -198,8 +295,14 @@ function generateId() {
 // ==========================
 // Save / Add Inventory Item
 // ==========================
+// ==========================
+// Save / Add Inventory Item
+// ==========================
+// ==========================
+// Save / Add Inventory Item
+// ==========================
 async function saveItem() {
-  const id = document.getElementById("item-id").value;
+  let id = document.getElementById("item-id").value;
   const name = document.getElementById("item-name").value.trim();
   const category = document.getElementById("category").value;
   const quantity = Number(document.getElementById("quantity").value);
@@ -207,55 +310,69 @@ async function saveItem() {
   const expiry = document.getElementById("expiry-date").value || null;
   const supplier = document.getElementById("supplier-name").value || "Unknown";
 
-  // Validate required fields
-  if (!name || !category || unit === "" || quantity < 0 || isNaN(quantity)) {
-    alert("Please fill all required fields correctly. Quantity must be 0 or more.");
-    return;
+  // Supplier & stock info
+  const supplierContact = document.getElementById("supplier-contact").value || "";
+  const supplierEmail = document.getElementById("supplier-email").value || "";
+  const batchNumber = document.getElementById("batch-number").value || "";
+  const manufacturer = document.getElementById("manufacturer").value || "";
+  const manufactureDate = document.getElementById("manufacture-date").value || null;
+  const costPrice = Number(document.getElementById("cost-price").value) || 0;
+  const sellingPrice = Number(document.getElementById("selling-price").value) || 0;
+  const reorderLevel = Number(document.getElementById("reorder-level").value) || 0;
+  const minimumStock = Number(document.getElementById("minimum-stock").value) || 0;
+  const taxRate = Number(document.getElementById("tax-rate").value) || 0;
+  const insuranceCovered = document.getElementById("insurance-covered").value || "no";
+
+  if (!name || !category || !unit || quantity < 0 || isNaN(quantity)) {
+    return alert("Please fill all required fields correctly. Quantity must be 0 or more.");
   }
 
-  const payload = { name, category, quantity, unit, expiry, supplier };
+  if (!id) id = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const payload = {
+    id, name, category, quantity, unit, expiry, supplier,
+    supplierContact, supplierEmail, batchNumber, manufacturer, manufactureDate,
+    costPrice, sellingPrice, reorderLevel, minimumStock, taxRate, insuranceCovered
+  };
 
   try {
-    let res, updatedItem;
-
-    if (id) {
-      // Update existing item
-      res = await fetch(`${BASE_URL}/inventory/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    } else {
-      // Add new item
-      res = await fetch(`${BASE_URL}/inventory`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    }
+    const res = await fetch(`${BASE_URL}/inventory${id ? `/${id}` : ""}`, {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
     if (!res.ok) {
       const errMsg = await res.json();
       return alert(`Failed to save item: ${errMsg.message}`);
     }
 
-    updatedItem = await res.json();
+    const updatedItem = await res.json();
 
-    if (id) {
-      const index = inventory.findIndex(i => i.id === id);
-      if (index > -1) inventory[index] = updatedItem;
-    } else {
-      inventory.push(updatedItem);
-    }
+    // Update local inventory array
+    const index = inventory.findIndex(i => i.id === id);
+    if (index > -1) inventory[index] = updatedItem;
+    else inventory.push(updatedItem);
+
+    // Update pharmacy inventory if needed
+    await updatePharmacyInventory(updatedItem.id, quantity);
+
+    // Refresh inventory & report data
+    await refreshInventory();
 
     closeModal();
-    renderTable();
-
+    alert(`${document.getElementById("item-id").value ? "Updated" : "Added"} item successfully.`);
   } catch (err) {
     console.error(err);
     alert('Failed to save item due to network error');
   }
 }
+
+
+
+
+
+
 
 // ==========================
 // Helper: Format date for input[type=date]
@@ -271,6 +388,9 @@ function formatDateForInput(date) {
 // ==========================
 // Restock Item using Modal
 // ==========================
+// ==========================
+// Restock Inventory Item
+// ==========================
 async function restockItem(id) {
   const item = inventory.find(i => i.id === id);
   if (!item) return alert('Item not found');
@@ -278,13 +398,13 @@ async function restockItem(id) {
   const restockQty = prompt(`Enter quantity to restock for ${item.name}:`);
   const qty = Number(restockQty);
 
-  if (!qty || qty <= 0) return;
+  if (!qty || qty <= 0) return alert('Please enter a valid quantity greater than 0.');
 
   try {
     const res = await fetch(`${BASE_URL}/inventory/restock/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quantity: qty }) // just send the amount to add
+      body: JSON.stringify({ quantity: qty })
     });
 
     if (!res.ok) {
@@ -292,16 +412,20 @@ async function restockItem(id) {
       return alert(`Failed to restock: ${errMsg.message}`);
     }
 
-    const updated = await res.json();
+    const updatedItem = await res.json();
     const index = inventory.findIndex(i => i.id === id);
-    if (index > -1) inventory[index] = updated;
+    if (index > -1) inventory[index] = updatedItem;
 
-    renderTable();
+    await updatePharmacyInventory(updatedItem.id, qty);
+
+    await refreshInventory();
+    alert(`Successfully restocked ${qty} units of ${item.name}.`);
   } catch (err) {
     console.error(err);
     alert('Failed to restock item due to network error');
   }
 }
+
 
 
 
@@ -316,14 +440,14 @@ async function disposeItem(id) {
 
     if (!res.ok) {
       const errMsg = await res.json();
-      alert(`Failed to delete item: ${errMsg.message}`);
-      return;
+      return alert(`Failed to delete item: ${errMsg.message}`);
     }
 
-    // Remove from local array and refresh table
     inventory = inventory.filter(i => i.id !== id);
-    renderTable();
 
+    // Refresh inventory & report data
+    await refreshInventory();
+    alert('Item disposed successfully.');
   } catch (err) {
     console.error(err);
     alert('Failed to delete item due to network error');
@@ -394,9 +518,26 @@ function editItem(id) {
 // ==========================
 // CSV / PDF Export
 // ==========================
+let reportData = []; // mirrors inventory for reports
+
+function syncReportData() {
+  reportData = inventory.map(item => ({
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    quantity: item.quantity,
+    unit: item.unit,
+    expiry: item.expiry || "N/A",
+    supplier: item.supplier || "Unknown",
+    status: item.status
+  }));
+}
+
 document.querySelector(".btn-success").addEventListener("click", () => {
   let csv = "data:text/csv;charset=utf-8,Item ID,Item Name,Category,Quantity,Unit,Expiry Date,Supplier,Status\n";
-  inventory.forEach(i => { csv += `${i.id},${i.name},${i.category},${i.quantity},${i.unit},${i.expiry||"N/A"},${i.supplier},${i.status}\n`; });
+  reportData.forEach(i => {
+    csv += `${i.id},${i.name},${i.category},${i.quantity},${i.unit},${i.expiry},${i.supplier},${i.status}\n`;
+  });
   const link = document.createElement("a");
   link.href = encodeURI(csv);
   link.setAttribute("download","inventory.csv");
@@ -404,6 +545,7 @@ document.querySelector(".btn-success").addEventListener("click", () => {
   link.click();
   document.body.removeChild(link);
 });
+
 
 document.querySelector(".btn-warning").addEventListener("click", () => {
   let printContent = "<h2>Inventory Report</h2><table border='1' cellpadding='5'><tr><th>ID</th><th>Name</th><th>Category</th><th>Quantity</th><th>Unit</th><th>Expiry</th><th>Supplier</th><th>Status</th></tr>";

@@ -1,6 +1,8 @@
 import Inventory from "../models/Inventory.js";
 
-// Utility: calculate status
+// ==========================
+// Utility: calculate item status
+// ==========================
 const calculateStatus = (item) => {
   const today = new Date();
   if (item.quantity === 0) return "out";
@@ -40,19 +42,23 @@ export const getInventoryById = async (req, res) => {
 // ==========================
 export const addInventoryItem = async (req, res) => {
   try {
-    const { id, name, category, quantity, unit, expiry, supplier } = req.body;
-    const newItemData = {
-      id: id || `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      name,
-      category,
-      quantity: Number(quantity) || 0,
-      unit,
-      expiry: expiry || null,
-      supplier: supplier || "Unknown",
+    const payload = {
+      id: req.body.id || `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ...req.body,
+      quantity: Number(req.body.quantity) || 0,
+      costPrice: Number(req.body.costPrice) || 0,
+      sellingPrice: Number(req.body.sellingPrice) || 0,
+      reorderLevel: Number(req.body.reorderLevel) || 10,
+      minimumStock: Number(req.body.minimumStock) || 5,
+      taxRate: Number(req.body.taxRate) || 16,
+      supplier: req.body.supplier || "Unknown",
+      expiry: req.body.expiry || null,
+      manufactureDate: req.body.manufactureDate || null,
     };
-    newItemData.status = calculateStatus(newItemData);
 
-    const newItem = new Inventory(newItemData);
+    payload.status = calculateStatus(payload);
+
+    const newItem = new Inventory(payload);
     await newItem.save();
     res.status(201).json(newItem);
   } catch (err) {
@@ -68,18 +74,11 @@ export const updateInventoryItem = async (req, res) => {
     const item = await Inventory.findOne({ id: req.params.id });
     if (!item) return res.status(404).json({ message: "Item not found" });
 
-    const { name, category, quantity, unit, expiry, supplier } = req.body;
-
-    if (name !== undefined) item.name = name;
-    if (category !== undefined) item.category = category;
-    if (unit !== undefined) item.unit = unit;
-    if (expiry !== undefined) item.expiry = expiry || null;
-    if (supplier !== undefined) item.supplier = supplier || "Unknown";
-    if (quantity !== undefined) {
-      const qty = Number(quantity);
-      if (isNaN(qty) || qty < 0) return res.status(400).json({ message: "Quantity must be non-negative" });
-      item.quantity = qty;
-    }
+    Object.keys(req.body).forEach((key) => {
+      if (req.body[key] !== undefined) {
+        item[key] = key === "quantity" ? Number(req.body[key]) : req.body[key];
+      }
+    });
 
     item.status = calculateStatus(item);
     await item.save();
@@ -110,8 +109,7 @@ export const restockInventoryItem = async (req, res) => {
     const item = await Inventory.findOne({ id: req.params.id });
     if (!item) return res.status(404).json({ message: "Item not found" });
 
-    const { quantity } = req.body; // frontend sends quantity to add
-    const qty = Number(quantity);
+    const qty = Number(req.body.quantity);
     if (isNaN(qty) || qty <= 0) return res.status(400).json({ message: "Invalid quantity" });
 
     item.quantity += qty;
@@ -121,5 +119,60 @@ export const restockInventoryItem = async (req, res) => {
     res.json(item);
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+};
+
+// ==========================
+// Pharmacy Module
+// ==========================
+export const getPharmacyInventory = async (req, res) => {
+  try {
+    const items = await Inventory.find();
+    const data = items.map((item) => ({ ...item.toObject(), status: calculateStatus(item) }));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const dispenseInventoryItem = async (req, res) => {
+  try {
+    const { itemId, quantity } = req.body;
+    const item = await Inventory.findOne({ id: itemId });
+    if (!item) return res.status(404).json({ message: "Item not found" });
+
+    const qty = Number(quantity);
+    if (isNaN(qty) || qty <= 0 || qty > item.quantity)
+      return res.status(400).json({ message: "Invalid dispense quantity" });
+
+    item.quantity -= qty;
+    item.status = calculateStatus(item);
+    await item.save();
+
+    res.json(item);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// ==========================
+// Inventory Reports
+// ==========================
+export const getInventoryReports = async (req, res) => {
+  try {
+    const items = await Inventory.find();
+    const data = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      unit: item.unit,
+      expiry: item.expiry ? item.expiry.toISOString() : "N/A",
+      supplier: item.supplier,
+      status: calculateStatus(item),
+    }));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
