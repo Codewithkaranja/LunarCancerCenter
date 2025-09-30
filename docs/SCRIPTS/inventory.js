@@ -3,33 +3,44 @@
 // ==========================
 // Helper: Update inventory for pharmacy/prescription linkage
 // Helper: Update inventory for pharmacy/prescription linkage
-async function updatePharmacyInventory(itemId, quantityUsed = 0) {
-  if (quantityUsed <= 0) return; // nothing to update
+async function updatePharmacyInventory(itemId, quantityUsed = 0, patientId = null) {
+  if (!itemId || quantityUsed <= 0) return; // nothing to update
 
   try {
-    // POST request to backend endpoint that handles inventory deduction
     const res = await fetch(`${BASE_URL}/inventory/pharmacy/dispense`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId, quantity: quantityUsed }),
+      body: JSON.stringify({ itemId, quantity: quantityUsed, patientId }),
     });
 
     if (!res.ok) {
       const errMsg = await res.json();
-      console.warn(`Failed to update pharmacy inventory: ${errMsg.message}`);
+      console.warn(`❌ Failed to update pharmacy inventory: ${errMsg.message}`);
       return;
     }
 
-    // Update local inventory table
-    const updatedItem = await res.json();
-    const index = inventory.findIndex(i => i.id === updatedItem.id);
-    if (index > -1) inventory[index] = updatedItem;
+    const { item, log } = await res.json(); // backend returns both updated item + log
 
+    // Update local inventory cache
+    const index = inventory.findIndex(i => i._id === item._id);
+    if (index > -1) {
+      inventory[index] = item;
+    } else {
+      inventory.push(item); // fallback if item wasn’t cached before
+    }
+
+    // Re-render table
     renderTable();
+
+    console.log(`✅ Pharmacy inventory updated: ${quantityUsed} units deducted from ${item.name}`);
+    if (log) {
+      console.log(`📝 Dispense logged for patient ${log.patientId || "N/A"} by user ${log.dispensedBy}`);
+    }
   } catch (err) {
-    console.error("Error updating pharmacy inventory:", err);
+    console.error("⚠️ Error updating pharmacy inventory:", err);
   }
 }
+
 // ==========================
 // Refresh inventory from backend
 // ==========================
@@ -41,11 +52,16 @@ async function refreshInventory() {
     const res = await fetch(`${BASE_URL}/inventory`);
     if (!res.ok) throw new Error("Failed to fetch inventory");
 
-    inventory = await res.json();
+    const data = await res.json();
 
-    // Sync with reportData
+    // Ensure status is up-to-date even if backend changes it
+    inventory = data.map(item => ({
+      ...item,
+      status: item.status || calculateStatus(item) // optional frontend fallback
+    }));
+
     reportData = inventory.map(item => ({
-      id: item.id,
+      id: item._id,
       name: item.name,
       category: item.category,
       quantity: item.quantity,
@@ -62,15 +78,24 @@ async function refreshInventory() {
 }
 
 
+// Global Constants & State
+// ==========================
+const BASE_URL = "https://lunar-hmis-backend.onrender.com/api";
 
+let inventory = [];
+let reportData = [];
+let currentPage = 1;
+const rowsPerPage = 5;
+let currentSort = { column: "name", order: "asc" };
 
+// ==========================
+// DOM Ready
+// ==========================
 document.addEventListener("DOMContentLoaded", function () {
-  const BASE_URL = "https://lunar-hmis-backend.onrender.com/api";
-
   const userRole = localStorage.getItem("userRole") || "pharmacist";
   const userName = localStorage.getItem("userName") || "Pharmacist John";
 
-  // Update header
+  // Header info
   document.querySelector(".user-details h3").textContent = userName;
   document.querySelector(".user-details p").textContent = userRole.charAt(0).toUpperCase() + userRole.slice(1);
 
@@ -82,8 +107,11 @@ document.addEventListener("DOMContentLoaded", function () {
   fetchInventory();
 });
 
+// ==========================
+// Role-based UI
+// ==========================
 function hideActions(requestOnly = false) {
-  document.querySelector(".btn-primary").style.display = "none";
+  document.querySelector(".btn-primary")?.style.display = "none";
   document.querySelectorAll(".btn-edit, .btn-delete, .btn-restock").forEach(btn => btn.style.display = "none");
 
   if (requestOnly) {
@@ -100,39 +128,47 @@ function hideActions(requestOnly = false) {
 }
 
 // ==========================
-// Inventory Data
-// ==========================
-let inventory = [];
-let currentPage = 1;
-const rowsPerPage = 5;
-let currentSort = { column: "name", order: "asc" };
-
-// ==========================
-// Fetch Inventory from Backend
+// Fetch Inventory
 // ==========================
 async function fetchInventory() {
   try {
     const res = await fetch(`${BASE_URL}/inventory`);
+    if (!res.ok) throw new Error("Failed to fetch inventory");
     inventory = await res.json();
+    reportData = [...inventory];
     renderTable();
   } catch (err) {
     console.error('Error fetching inventory:', err);
   }
 }
 
+async function refreshInventory() {
+  try {
+    const res = await fetch(`${BASE_URL}/inventory`);
+    if (!res.ok) throw new Error("Failed to fetch inventory");
+    const data = await res.json();
+    inventory = data.map(item => ({ ...item, status: item.status || calculateStatus(item) }));
+    reportData = [...inventory];
+    renderTable();
+  } catch (err) {
+    console.error('Error refreshing inventory:', err);
+  }
+}
+
 // ==========================
-// Render Table
+// Table Rendering
 // ==========================
 function renderTable() {
   const tbody = document.querySelector(".inventory-table tbody");
-  tbody.innerHTML = "";
+  if (!tbody) return;
 
-  const searchTerm = document.getElementById("search-term").value.toLowerCase();
-  const filterCategory = document.getElementById("filter-category").value;
-  const filterStatus = document.getElementById("filter-status").value;
+  tbody.innerHTML = "";
+  const searchTerm = document.getElementById("search-term")?.value.toLowerCase() || "";
+  const filterCategory = document.getElementById("filter-category")?.value || "";
+  const filterStatus = document.getElementById("filter-status")?.value || "";
 
   let filtered = inventory.filter(item =>
-    (item.name.toLowerCase().includes(searchTerm) || item.id.toLowerCase().includes(searchTerm)) &&
+    (item.name.toLowerCase().includes(searchTerm) || item._id.toLowerCase().includes(searchTerm)) &&
     (filterCategory === "" || item.category === filterCategory) &&
     (filterStatus === "" || item.status === filterStatus)
   );
@@ -143,9 +179,7 @@ function renderTable() {
     let valB = b[currentSort.column];
     if (currentSort.column === "quantity") { valA = Number(valA); valB = Number(valB); }
     if (currentSort.column === "expiry") { valA = valA ? new Date(valA) : new Date(0); valB = valB ? new Date(valB) : new Date(0); }
-    if (valA < valB) return currentSort.order === "asc" ? -1 : 1;
-    if (valA > valB) return currentSort.order === "asc" ? 1 : -1;
-    return 0;
+    return currentSort.order === "asc" ? (valA < valB ? -1 : valA > valB ? 1 : 0) : (valA > valB ? -1 : valA < valB ? 1 : 0);
   });
 
   // Pagination
@@ -156,7 +190,7 @@ function renderTable() {
   paginated.forEach(item => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${item.id}</td>
+      <td>${item._id}</td>
       <td>${item.name}</td>
       <td><span class="category-badge category-${item.category}">${capitalize(item.category)}</span></td>
       <td>${item.quantity}</td>
@@ -165,10 +199,10 @@ function renderTable() {
       <td>${item.supplier}</td>
       <td><span class="status-badge status-${item.status}">${capitalizeStatus(item.status)}</span></td>
       <td class="action-cell">
-        <button class="action-btn btn-view" onclick="viewItem('${item.id}')"><i class="fas fa-eye"></i> View</button>
-        <button class="action-btn btn-edit" onclick="editItem('${item.id}')"><i class="fas fa-edit"></i> Edit</button>
-        <button class="action-btn btn-restock" onclick="restockItem('${item.id}')"><i class="fas fa-cart-plus"></i> Restock</button>
-        <button class="action-btn btn-delete" onclick="disposeItem('${item.id}')"><i class="fas fa-trash"></i> Dispose</button>
+        <button class="action-btn btn-view" onclick="viewItem('${item._id}')"><i class="fas fa-eye"></i> View</button>
+        <button class="action-btn btn-edit" onclick="editItem('${item._id}')"><i class="fas fa-edit"></i> Edit</button>
+        <button class="action-btn btn-restock" onclick="restockItem('${item._id}')"><i class="fas fa-cart-plus"></i> Restock</button>
+        <button class="action-btn btn-delete" onclick="disposeItem('${item._id}')"><i class="fas fa-trash"></i> Dispose</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -302,7 +336,7 @@ function generateId() {
 // Save / Add Inventory Item
 // ==========================
 async function saveItem() {
-  let id = document.getElementById("item-id").value;
+  const id = document.getElementById("item-id").value; // backend _id if editing
   const name = document.getElementById("item-name").value.trim();
   const category = document.getElementById("category").value;
   const quantity = Number(document.getElementById("quantity").value);
@@ -323,22 +357,34 @@ async function saveItem() {
   const taxRate = Number(document.getElementById("tax-rate").value) || 0;
   const insuranceCovered = document.getElementById("insurance-covered").value || "no";
 
+  // ✅ Validation
   if (!name || !category || !unit || quantity < 0 || isNaN(quantity)) {
     return alert("Please fill all required fields correctly. Quantity must be 0 or more.");
   }
+  if (sellingPrice < costPrice) {
+    return alert("Selling price cannot be lower than cost price.");
+  }
 
-  if (!id) id = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
+  // Build payload (no manual id generation)
   const payload = {
-    id, name, category, quantity, unit, expiry, supplier,
+    name, category, quantity, unit, expiry, supplier,
     supplierContact, supplierEmail, batchNumber, manufacturer, manufactureDate,
     costPrice, sellingPrice, reorderLevel, minimumStock, taxRate, insuranceCovered
   };
 
   try {
-    const res = await fetch(`${BASE_URL}/inventory${id ? `/${id}` : ""}`, {
-      method: id ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    // Decide method and URL
+    let method = "POST";
+    let url = `${BASE_URL}/inventory`;
+
+    if (id) {
+      method = "PUT";
+      url = `${BASE_URL}/inventory/${id}`;
+    }
+
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
@@ -350,21 +396,21 @@ async function saveItem() {
     const updatedItem = await res.json();
 
     // Update local inventory array
-    const index = inventory.findIndex(i => i.id === id);
-    if (index > -1) inventory[index] = updatedItem;
-    else inventory.push(updatedItem);
+    if (id) {
+      const index = inventory.findIndex(i => i._id === id);
+      if (index > -1) inventory[index] = updatedItem;
+    } else {
+      inventory.push(updatedItem);
+    }
 
-    // Update pharmacy inventory if needed
-    await updatePharmacyInventory(updatedItem.id, quantity);
-
-    // Refresh inventory & report data
+    // ✅ Refresh inventory & reports
     await refreshInventory();
 
     closeModal();
-    alert(`${document.getElementById("item-id").value ? "Updated" : "Added"} item successfully.`);
+    alert(`${id ? "Updated" : "Added"} item successfully.`);
   } catch (err) {
     console.error(err);
-    alert('Failed to save item due to network error');
+    alert("Failed to save item due to network error");
   }
 }
 
@@ -416,7 +462,8 @@ async function restockItem(id) {
     const index = inventory.findIndex(i => i.id === id);
     if (index > -1) inventory[index] = updatedItem;
 
-    await updatePharmacyInventory(updatedItem.id, qty);
+    // ✅ Removed updatePharmacyInventory here
+    // Only call updatePharmacyInventory when dispensing prescriptions
 
     await refreshInventory();
     alert(`Successfully restocked ${qty} units of ${item.name}.`);
@@ -425,6 +472,7 @@ async function restockItem(id) {
     alert('Failed to restock item due to network error');
   }
 }
+
 
 
 
@@ -466,7 +514,7 @@ function viewItem(id) {
   }
 
   // Populate modal fields
-  document.getElementById("item-id").value = item.id;
+  document.getElementById("item-id").value = item._id;
   document.getElementById("item-name").value = item.name;
   document.getElementById("category").value = item.category;
   document.getElementById("quantity").value = item.quantity;
@@ -489,14 +537,19 @@ function viewItem(id) {
 // Close Modal (reset view)
 // ==========================
 function closeModal() {
-  document.getElementById("inventoryModal").style.display = "none";
+  const modal = document.getElementById("inventoryModal");
+  if (!modal) return; // safeguard
+  modal.style.display = "none";
 
   // Re-enable inputs and show Save button for next use
   ["item-name", "category", "quantity", "unit", "expiry-date", "supplier-name"].forEach(id => {
-    document.getElementById(id).disabled = false;
+    const el = document.getElementById(id);
+    if(el) el.disabled = false;
   });
-  document.getElementById("save-btn").style.display = "inline-block";
+  const saveBtn = document.getElementById("save-btn");
+  if(saveBtn) saveBtn.style.display = "inline-block";
 }
+
 
 // ==========================
 // Edit Inventory Item
@@ -505,7 +558,7 @@ function editItem(id) {
   const item = inventory.find(i => i.id === id);
   if (!item) return;
 
-  document.getElementById("item-id").value = item.id;
+  document.getElementById("item-id").value = item._id;
   document.getElementById("item-name").value = item.name;
   document.getElementById("category").value = item.category;
   document.getElementById("quantity").value = item.quantity;
@@ -518,11 +571,11 @@ function editItem(id) {
 // ==========================
 // CSV / PDF Export
 // ==========================
-let reportData = []; // mirrors inventory for reports
+//let reportData = []; // mirrors inventory for reports
 
 function syncReportData() {
   reportData = inventory.map(item => ({
-    id: item.id,
+    id: item._id,
     name: item.name,
     category: item.category,
     quantity: item.quantity,
@@ -535,12 +588,15 @@ function syncReportData() {
 
 document.querySelector(".btn-success").addEventListener("click", () => {
   let csv = "data:text/csv;charset=utf-8,Item ID,Item Name,Category,Quantity,Unit,Expiry Date,Supplier,Status\n";
+  
   reportData.forEach(i => {
-    csv += `${i.id},${i.name},${i.category},${i.quantity},${i.unit},${i.expiry},${i.supplier},${i.status}\n`;
+    const expiryFormatted = i.expiry === "N/A" ? "N/A" : new Date(i.expiry).toLocaleDateString("en-GB");
+    csv += `${i.id},${i.name},${i.category},${i.quantity},${i.unit},${expiryFormatted},${i.supplier},${i.status}\n`;
   });
+
   const link = document.createElement("a");
   link.href = encodeURI(csv);
-  link.setAttribute("download","inventory.csv");
+  link.setAttribute("download", "inventory.csv");
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

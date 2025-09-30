@@ -1,22 +1,40 @@
 // models/Prescription.js
 import mongoose from 'mongoose';
 
+// Schema for each prescription item
 const prescriptionItemSchema = new mongoose.Schema(
   {
     medication: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Inventory',   // 👈 linked to Inventory model
+      ref: 'Inventory',   // Linked to Inventory model
       required: true,
     },
-    dosage: { type: String },
-    frequency: { type: String },
-    duration: { type: String },
-    quantity: { type: Number, default: 1 },
-    instructions: { type: String },
+    dosage: { 
+      type: String,
+      trim: true,
+    },
+    frequency: { 
+      type: String,
+      trim: true,
+    },
+    duration: { 
+      type: String,
+      trim: true,
+    },
+    quantity: { 
+      type: Number, 
+      default: 1,
+      min: [1, "Quantity must be at least 1"],
+    },
+    instructions: { 
+      type: String,
+      trim: true,
+    },
   },
   { _id: false }
 );
 
+// Main prescription schema
 const prescriptionSchema = new mongoose.Schema(
   {
     patientId: {
@@ -27,9 +45,12 @@ const prescriptionSchema = new mongoose.Schema(
     doctorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: false, // keep false since auth is off
+      required: false, // optional if auth is off
     },
-    items: [prescriptionItemSchema],
+    items: {
+      type: [prescriptionItemSchema],
+      validate: [arr => arr.length > 0, "Prescription must have at least one item"]
+    },
     status: {
       type: String,
       enum: ['draft', 'submitted', 'dispensed', 'cancelled'],
@@ -43,6 +64,11 @@ const prescriptionSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Virtual for frontend-friendly display (optional)
+prescriptionSchema.virtual('totalItems').get(function () {
+  return this.items.reduce((sum, item) => sum + item.quantity, 0);
+});
 
 const Prescription = mongoose.model('Prescription', prescriptionSchema);
 

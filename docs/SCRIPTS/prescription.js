@@ -454,7 +454,7 @@ async function refreshStock() {
       }
 
       // Update patient info based on selection
-      let selectedPatientId = ""; // global variable
+      //let selectedPatientId = ""; // global variable
 // Global variables
 let patients = []; // fetched from backend
 let selectedPatientId = ""; // currently selected patient
@@ -544,16 +544,34 @@ async function saveDraft() {
     return;
   }
 
-  const medicationsList = prescriptionItems.filter(item => item.medicationId && item.quantity > 0);
+  // Filter out invalid items
+  const medicationsList = prescriptionItems.filter(
+    item => item.medicationId && item.quantity > 0
+  );
+
   if (!selectedPatientId || medicationsList.length === 0) {
     alert("Please select a patient and add at least one medication.");
     return;
   }
 
+  // Validate that all medication IDs exist in backend stock
+  const invalidMeds = medicationsList.filter(
+    item => !medications.find(m => m.id === item.medicationId)
+  );
+
+  if (invalidMeds.length > 0) {
+    alert(
+      `Some medications are invalid or not in stock: ${invalidMeds
+        .map(i => i.medication)
+        .join(", ")}`
+    );
+    return;
+  }
+
   const payload = {
     patientId: selectedPatientId,
-    items: prescriptionItems.map(item => ({
-      medicationId: item.medicationId, // use ID instead of name
+    items: medicationsList.map(item => ({
+      medicationId: item.medicationId,
       dosage: item.dosage,
       frequency: item.frequency,
       duration: item.duration,
@@ -565,21 +583,24 @@ async function saveDraft() {
   };
 
   try {
-    const res = await fetch('https://lunar-hmis-backend.onrender.com/api/prescriptions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // 'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    });
+    const res = await fetch(
+      "https://lunar-hmis-backend.onrender.com/api/prescriptions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // 'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      }
+    );
 
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.message || "Failed to save draft");
     }
 
-    const data = await res.json();
+    await res.json();
     alert("Prescription saved as draft successfully!");
     await fetchPrescriptionHistory();
   } catch (err) {
@@ -587,6 +608,7 @@ async function saveDraft() {
     alert(`Failed to save draft: ${err.message}`);
   }
 }
+
 
 
 // Submit prescription to pharmacy
@@ -601,18 +623,32 @@ async function submitToPharmacy() {
   }
 
   const patientName = document.getElementById("patient-info-name")?.textContent || "";
-  const medicationsList = prescriptionItems
-    .filter(item => item.medicationId && item.quantity > 0); // use medicationId
+  const medicationsList = prescriptionItems.filter(
+    item => item.medicationId && item.quantity > 0
+  );
 
-  if (!patientName || medicationsList.length === 0) {
+  if (!selectedPatientId || medicationsList.length === 0) {
     alert("Please select a patient and add at least one medication.");
+    return;
+  }
+
+  // Validate medication IDs against backend stock
+  const invalidMeds = medicationsList.filter(
+    item => !medications.find(m => m.id === item.medicationId)
+  );
+  if (invalidMeds.length > 0) {
+    alert(
+      `Some medications are invalid or not in stock: ${invalidMeds
+        .map(i => i.medication)
+        .join(", ")}`
+    );
     return;
   }
 
   const payload = {
     patientId: selectedPatientId,
-    items: prescriptionItems.map(item => ({
-      medicationId: item.medicationId, // use ID
+    items: medicationsList.map(item => ({
+      medicationId: item.medicationId,
       dosage: item.dosage,
       frequency: item.frequency,
       duration: item.duration,
@@ -628,7 +664,7 @@ async function submitToPharmacy() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // 'Authorization': `Bearer ${token}` // optional for auth
+        // 'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(payload)
     });
@@ -638,19 +674,18 @@ async function submitToPharmacy() {
       throw new Error(err.message || "Failed to submit prescription");
     }
 
-    const data = await res.json();
+    await res.json();
     alert("Prescription submitted to pharmacy successfully!");
 
-    // Refresh prescription history
+    // Refresh prescription history and stock
     await fetchPrescriptionHistory();
-
-    // Refresh stock table to show updated inventory
     await refreshStock();
   } catch (err) {
     console.error(err);
     alert(`Error submitting prescription: ${err.message}`);
   }
 }
+
 
 
 // Reissue prescription

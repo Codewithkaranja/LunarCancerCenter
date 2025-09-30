@@ -1,15 +1,16 @@
 import Inventory from "../models/Inventory.js";
-
-// ==========================
-// Utility: calculate item status
-// ==========================
-const calculateStatus = (item) => {
+import Dispense from "../models/Dispense.js"; // new model
+// Helper to determine stock status
+export const calculateStatus = (item) => {
   const today = new Date();
   if (item.quantity === 0) return "out";
   if (item.expiry && new Date(item.expiry) < today) return "expired";
+  if (item.expiry && new Date(item.expiry) - today < 1000 * 60 * 60 * 24 * 30)
+    return "expiringSoon";
   if (item.reorderLevel && item.quantity < item.reorderLevel) return "low";
   return "instock";
 };
+
 
 // ==========================
 // GET all inventory
@@ -17,7 +18,10 @@ const calculateStatus = (item) => {
 export const getAllInventory = async (req, res) => {
   try {
     const items = await Inventory.find();
-    const data = items.map((item) => ({ ...item.toObject(), status: calculateStatus(item) }));
+    const data = items.map((item) => ({
+      ...item.toObject(),
+      status: calculateStatus(item),
+    }));
     res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -29,7 +33,7 @@ export const getAllInventory = async (req, res) => {
 // ==========================
 export const getInventoryById = async (req, res) => {
   try {
-    const item = await Inventory.findOne({ id: req.params.id });
+    const item = await Inventory.findById(req.params.id);
     if (!item) return res.status(404).json({ message: "Item not found" });
     res.json({ ...item.toObject(), status: calculateStatus(item) });
   } catch (err) {
@@ -43,7 +47,6 @@ export const getInventoryById = async (req, res) => {
 export const addInventoryItem = async (req, res) => {
   try {
     const payload = {
-      id: req.body.id || `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       ...req.body,
       quantity: Number(req.body.quantity) || 0,
       costPrice: Number(req.body.costPrice) || 0,
@@ -71,7 +74,7 @@ export const addInventoryItem = async (req, res) => {
 // ==========================
 export const updateInventoryItem = async (req, res) => {
   try {
-    const item = await Inventory.findOne({ id: req.params.id });
+    const item = await Inventory.findById(req.params.id);
     if (!item) return res.status(404).json({ message: "Item not found" });
 
     Object.keys(req.body).forEach((key) => {
@@ -93,7 +96,7 @@ export const updateInventoryItem = async (req, res) => {
 // ==========================
 export const deleteInventoryItem = async (req, res) => {
   try {
-    const deleted = await Inventory.findOneAndDelete({ id: req.params.id });
+    const deleted = await Inventory.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Item not found" });
     res.json({ message: "Item deleted" });
   } catch (err) {
@@ -106,11 +109,12 @@ export const deleteInventoryItem = async (req, res) => {
 // ==========================
 export const restockInventoryItem = async (req, res) => {
   try {
-    const item = await Inventory.findOne({ id: req.params.id });
+    const item = await Inventory.findById(req.params.id);
     if (!item) return res.status(404).json({ message: "Item not found" });
 
     const qty = Number(req.body.quantity);
-    if (isNaN(qty) || qty <= 0) return res.status(400).json({ message: "Invalid quantity" });
+    if (isNaN(qty) || qty <= 0)
+      return res.status(400).json({ message: "Invalid quantity" });
 
     item.quantity += qty;
     item.status = calculateStatus(item);
@@ -128,7 +132,10 @@ export const restockInventoryItem = async (req, res) => {
 export const getPharmacyInventory = async (req, res) => {
   try {
     const items = await Inventory.find();
-    const data = items.map((item) => ({ ...item.toObject(), status: calculateStatus(item) }));
+    const data = items.map((item) => ({
+      ...item.toObject(),
+      status: calculateStatus(item),
+    }));
     res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -137,19 +144,37 @@ export const getPharmacyInventory = async (req, res) => {
 
 export const dispenseInventoryItem = async (req, res) => {
   try {
-    const { itemId, quantity } = req.body;
-    const item = await Inventory.findOne({ id: itemId });
+    const { itemId, quantity, patientId } = req.body;
+    const item = await Inventory.findById(itemId);
     if (!item) return res.status(404).json({ message: "Item not found" });
 
     const qty = Number(quantity);
     if (isNaN(qty) || qty <= 0 || qty > item.quantity)
       return res.status(400).json({ message: "Invalid dispense quantity" });
 
+    // Deduct stock
     item.quantity -= qty;
     item.status = calculateStatus(item);
     await item.save();
 
-    res.json(item);
+    // Log dispense with patient ObjectId ref
+    const log = new Dispense({
+      medicineId: item._id,
+      name: item.name,
+      patientId: patientId || null, // <-- expects ObjectId (Patient._id)
+      quantity: qty,
+      dispensedBy: req.user ? req.user._id : null, // pharmacist/admin
+      date: new Date(),
+    });
+
+    await log.save();
+
+    // Populate references for response (optional)
+    const populatedLog = await log
+      .populate("dispensedBy", "name role")
+      .populate("patientId", "firstName lastName phone");
+
+    res.json({ item, log: populatedLog });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -162,7 +187,7 @@ export const getInventoryReports = async (req, res) => {
   try {
     const items = await Inventory.find();
     const data = items.map((item) => ({
-      id: item.id,
+      id: item._id,
       name: item.name,
       category: item.category,
       quantity: item.quantity,

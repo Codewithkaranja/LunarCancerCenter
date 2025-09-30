@@ -15,6 +15,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
+    "express-async-handler": "^1.2.0",
     "json2csv": "^6.0.0-alpha.2",
     "mongoose": "^7.8.7",
     "pdfkit": "^0.17.2"
