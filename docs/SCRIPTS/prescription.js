@@ -646,6 +646,7 @@ async function saveDraft() {
 
 // Submit prescription to pharmacy
 async function submitToPharmacy() {
+  // Permission check
   if (!userRoles[currentUserRole].prescriptions.create) {
     alert("You do not have permission to submit prescriptions.");
     return;
@@ -661,7 +662,7 @@ async function submitToPharmacy() {
     return;
   }
 
-  // Validate medication IDs against backend stock
+  // Validate medication IDs against local stock
   const invalidMeds = medicationsList.filter(
     item => !medications.find(m => m.id === item.medicationId)
   );
@@ -689,12 +690,10 @@ async function submitToPharmacy() {
   };
 
   try {
+    // Submit prescription to backend
     const res = await fetch('https://lunar-hmis-backend.onrender.com/api/prescriptions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // 'Authorization': `Bearer ${token}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
@@ -703,12 +702,19 @@ async function submitToPharmacy() {
       throw new Error(err.message || "Failed to submit prescription");
     }
 
-    await res.json();
+    const savedPrescription = await res.json();
     alert("Prescription submitted to pharmacy successfully!");
 
-    // Refresh prescription history and stock
+    // Refresh prescription history
     await fetchPrescriptionHistory();
-    await refreshStock();
+
+    // Pharmacist auto-dispense & update inventory
+    if (currentUserRole === "pharmacist") {
+      await administerPrescription(savedPrescription._id, medicationsList);
+    } else {
+      await refreshStock(); // just refresh stock for other roles
+    }
+
   } catch (err) {
     console.error(err);
     alert(`Error submitting prescription: ${err.message}`);
