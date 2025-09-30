@@ -5,7 +5,7 @@
 // ==========================
 // Global Constants & State
 // ==========================
-const BASE_URL = "https://lunar-hmis-backend.onrender.com/api";
+const BASE_URL = "https://lunar-hmis-backend.onrender.com";
 
 let inventory = [];
 let reportData = [];
@@ -206,11 +206,23 @@ function openTab(event, tabId) {
 function openModal() {
   const modal = document.getElementById("inventoryModal");
   if (!modal) return;
+  
   modal.style.display = "block";
 
-  document.querySelectorAll(".tab-content").forEach((tab, i) => tab.style.display = i === 0 ? "block" : "none");
+  // Show first tab content, hide others
+  document.querySelectorAll(".tab-content").forEach((tab, i) => {
+    tab.style.display = i === 0 ? "block" : "none";
+    tab.classList.toggle("active", i === 0);
+  });
+
+  // Activate first tab button
   document.querySelectorAll(".tab-btn").forEach((btn, i) => btn.classList.toggle("active", i === 0));
+
+  // Optional: focus first input inside modal
+  const firstInput = modal.querySelector("input, select, textarea");
+  if (firstInput) firstInput.focus();
 }
+
 
 function closeModal() {
   const modal = document.getElementById("inventoryModal");
@@ -238,74 +250,102 @@ function viewItem(id) {
   ["item-id","item-name","category","quantity","unit","expiry-date","supplier-name"].forEach(field => {
     const el = document.getElementById(field);
     if (!el) return;
-    el.value = item[field.replace("item-", "")] || item[field.replace("item-", "")]
+    el.value = item[field.replace("item-", "")] || ""; // ✅ fixed
     el.disabled = true;
   });
 
   document.getElementById("save-btn").style.display = "none";
-  openModal();
+  openModal(); // make sure openModal() is global
 }
+
 
 // -- Edit Item
 function editItem(id) {
   const item = inventory.find(i => i._id === id);
-  if (!item) return;
+  if (!item) return alert("Item not found");
 
-  document.getElementById("item-id").value = item._id;
-  document.getElementById("item-name").value = item.name;
-  document.getElementById("category").value = item.category;
-  document.getElementById("quantity").value = item.quantity;
-  document.getElementById("unit").value = item.unit;
-  document.getElementById("expiry-date").value = item.expiry ? formatDateForInput(item.expiry) : "";
-  document.getElementById("supplier-name").value = item.supplier || "";
+  const fields = ["item-id","item-name","category","quantity","unit","expiry-date","supplier-name"];
+  fields.forEach(field => {
+    const el = document.getElementById(field);
+    if (!el) return;
+    switch(field) {
+      case "item-id": el.value = item._id; break;
+      case "item-name": el.value = item.name || ""; break;
+      case "category": el.value = item.category || ""; break;
+      case "quantity": el.value = item.quantity ?? 0; break;
+      case "unit": el.value = item.unit || ""; break;
+      case "expiry-date": el.value = item.expiry ? formatDateForInput(item.expiry) : ""; break;
+      case "supplier-name": el.value = item.supplier || ""; break;
+    }
+  });
 
-  openModal();
+  openModal(); // Ensure this is globally accessible
 }
+
 
 // -- Save / Add Item
 async function saveItem() {
-  const id = document.getElementById("item-id").value;
+  const id = document.getElementById("item-id").value.trim();
   const name = document.getElementById("item-name").value.trim();
-  const category = document.getElementById("category").value;
+  const category = document.getElementById("category").value.trim();
   const quantity = Number(document.getElementById("quantity").value);
-  const unit = document.getElementById("unit").value;
+  const unit = document.getElementById("unit").value.trim();
   const expiry = document.getElementById("expiry-date").value || null;
-  const supplier = document.getElementById("supplier-name").value || "Unknown";
+  const supplier = document.getElementById("supplier-name").value.trim() || "Unknown";
 
-  if (!name || !category || !unit || isNaN(quantity) || quantity < 0) return alert("Fill required fields correctly");
+  // Validation
+  if (!name || !category || !unit || isNaN(quantity) || quantity < 0) {
+    return alert("Please fill all required fields correctly.");
+  }
 
   const payload = { name, category, quantity, unit, expiry, supplier };
 
   try {
-    let method = "POST";
-    let url = `${BASE_URL}/inventory`;
-    if (id) { method = "PUT"; url = `${BASE_URL}/inventory/${id}`; }
+    const method = id ? "PUT" : "POST";
+    const url = id ? `${BASE_URL}/inventory/${id}` : `${BASE_URL}/inventory`;
 
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (!res.ok) return alert("Failed to save item");
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return alert(errData.message || "Failed to save item.");
+    }
 
     const updatedItem = await res.json();
-    if (id) {
-      const index = inventory.findIndex(i => i._id === id);
-      if (index > -1) inventory[index] = updatedItem;
-    } else inventory.push(updatedItem);
+
+    // Update local inventory array
+    const index = inventory.findIndex(i => i._id === updatedItem._id);
+    if (index > -1) {
+      inventory[index] = updatedItem; // Update existing
+    } else {
+      inventory.push(updatedItem);    // Add new
+    }
 
     await refreshInventory();
     closeModal();
-    alert(`${id ? "Updated" : "Added"} item successfully`);
+    alert(`${id ? "Updated" : "Added"} item successfully.`);
   } catch (err) {
-    console.error(err);
-    alert("Network error while saving item");
+    console.error("Error saving item:", err);
+    alert("Network error while saving item.");
   }
 }
+
 
 // -- Restock Item
 async function restockItem(id) {
   const item = inventory.find(i => i._id === id);
   if (!item) return alert('Item not found');
 
-  const restockQty = Number(prompt(`Enter quantity to restock for ${item.name}:`));
-  if (!restockQty || restockQty <= 0) return alert('Enter valid quantity');
+  const input = prompt(`Enter quantity to restock for ${item.name}:`);
+  const restockQty = Number(input);
+
+  if (!input || isNaN(restockQty) || restockQty <= 0) {
+    return alert('Please enter a valid positive number.');
+  }
 
   try {
     const res = await fetch(`${BASE_URL}/inventory/restock/${id}`, {
@@ -313,35 +353,52 @@ async function restockItem(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quantity: restockQty })
     });
-    if (!res.ok) return alert('Failed to restock item');
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return alert(errData.message || 'Failed to restock item.');
+    }
 
     const updatedItem = await res.json();
+
+    // Update local inventory array
     const index = inventory.findIndex(i => i._id === id);
     if (index > -1) inventory[index] = updatedItem;
 
     await refreshInventory();
-    alert(`Successfully restocked ${restockQty} units of ${item.name}`);
+    alert(`Successfully restocked ${restockQty} units of ${item.name}.`);
   } catch (err) {
-    console.error(err);
-    alert('Network error while restocking');
+    console.error('Error restocking item:', err);
+    alert('Network error while restocking.');
   }
 }
 
 // -- Dispose / Delete Item
 async function disposeItem(id) {
-  if (!confirm("Are you sure you want to dispose this item?")) return;
+  const item = inventory.find(i => i._id === id);
+  if (!item) return alert("Item not found.");
+
+  if (!confirm(`Are you sure you want to dispose "${item.name}"?`)) return;
+
   try {
     const res = await fetch(`${BASE_URL}/inventory/${id}`, { method: 'DELETE' });
-    if (!res.ok) return alert("Failed to delete item");
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return alert(errData.message || "Failed to dispose item.");
+    }
 
+    // Remove from local inventory
     inventory = inventory.filter(i => i._id !== id);
+
     await refreshInventory();
-    alert('Item disposed successfully');
+    alert(`"${item.name}" disposed successfully.`);
   } catch (err) {
-    console.error(err);
-    alert('Network error while disposing item');
+    console.error("Error disposing item:", err);
+    alert("Network error while disposing item.");
   }
 }
+
+
 
 // ==========================
 // CSV / Print Export
