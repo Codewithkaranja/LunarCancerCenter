@@ -51,6 +51,35 @@
 
       // Sample data for medications
       let medications = []; // empty array initially
+async function administerPrescription(prescriptionId, items) {
+  if (!selectedPatientId) return alert("Select a patient first.");
+
+  try {
+    for (const item of items) {
+      const res = await fetch(
+        `https://lunar-hmis-backend.onrender.com/api/inventory/dispense/${item.medicationId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quantity: item.quantity, patientId: selectedPatientId })
+        }
+      );
+
+      if (!res.ok) {
+        const errMsg = await res.json();
+        console.error(`Failed to dispense ${item.medication}: ${errMsg.message}`);
+        alert(`Failed to dispense ${item.medication}: ${errMsg.message}`);
+      }
+    }
+
+    // Refresh stock in the frontend
+    await refreshStock();
+    alert("Prescription administered and inventory updated successfully.");
+  } catch (err) {
+    console.error("Error administering prescription:", err);
+    alert("Failed to administer prescription due to network error.");
+  }
+}
 
 // Fetch medications from backend
 async function fetchMedications() {
