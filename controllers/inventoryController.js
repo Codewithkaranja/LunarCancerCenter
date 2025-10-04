@@ -1,203 +1,169 @@
 import Inventory from "../models/Inventory.js";
-import Dispense from "../models/Dispense.js"; // new model
-// Helper to determine stock status
+import Invoice from "../models/Invoice.js"; // link with billing
+import asyncHandler from "express-async-handler";
+
+// ===== Helper: calculate stock status =====
 export const calculateStatus = (item) => {
   const today = new Date();
-  if (item.quantity === 0) return "out";
-  if (item.expiry && new Date(item.expiry) < today) return "expired";
-  if (item.expiry && new Date(item.expiry) - today < 1000 * 60 * 60 * 24 * 30)
-    return "expiringSoon";
-  if (item.reorderLevel && item.quantity < item.reorderLevel) return "low";
-  return "instock";
+  if (!item) return "instock";
+  if (item.quantity === 0) return "out-of-stock";
+  if (item.expiryDate && new Date(item.expiryDate) < today) return "expired";
+  if (item.expiryDate && new Date(item.expiryDate) - today < 1000 * 60 * 60 * 24 * 30) return "expiring-soon";
+  if (item.minStockLevel && item.quantity <= item.minStockLevel) return "low";
+  return "adequate";
 };
 
+// ===== GET /api/inventory =====
+export const getAllInventory = asyncHandler(async (req, res) => {
+  const items = await Inventory.find();
+  const data = items.map((it) => ({ ...it.toObject(), status: calculateStatus(it) }));
+  res.json(data);
+});
 
-// ==========================
-// GET all inventory
-// ==========================
-export const getAllInventory = async (req, res) => {
-  try {
-    const items = await Inventory.find();
-    const data = items.map((item) => ({
-      ...item.toObject(),
-      status: calculateStatus(item),
-    }));
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+// ===== GET /api/inventory/:id =====
+export const getInventoryById = asyncHandler(async (req, res) => {
+  const item = await Inventory.findById(req.params.id);
+  if (!item) {
+    res.status(404);
+    throw new Error("Item not found");
   }
-};
+  res.json({ ...item.toObject(), status: calculateStatus(item) });
+});
 
-// ==========================
-// GET inventory item by ID
-// ==========================
-export const getInventoryById = async (req, res) => {
-  try {
-    const item = await Inventory.findById(req.params.id);
-    if (!item) return res.status(404).json({ message: "Item not found" });
-    res.json({ ...item.toObject(), status: calculateStatus(item) });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+// ===== POST /api/inventory =====
+export const addInventoryItem = asyncHandler(async (req, res) => {
+  const payload = {
+    name: req.body.name,
+    category: req.body.category || "drug",
+    quantity: Number(req.body.quantity) || 0,
+    unit: req.body.unit || "unit",
+    expiryDate: req.body.expiryDate || null,
+    batchNumber: req.body.batchNumber || "",
+    supplier: req.body.supplier || { name: "Unknown", contact: "", email: "" },
+    manufactureDate: req.body.manufactureDate || null,
+    manufacturer: req.body.manufacturer || "",
+    costPrice: Number(req.body.costPrice) || 0,
+    unitPrice: Number(req.body.unitPrice) || 0,
+    minStockLevel: Number(req.body.minStockLevel) || 10,
+  };
+
+  const newItem = new Inventory(payload);
+  newItem.status = calculateStatus(newItem);
+  const saved = await newItem.save();
+  res.status(201).json(saved);
+});
+
+// ===== PUT /api/inventory/:id =====
+export const updateInventoryItem = asyncHandler(async (req, res) => {
+  const item = await Inventory.findById(req.params.id);
+  if (!item) {
+    res.status(404);
+    throw new Error("Item not found");
   }
-};
 
-// ==========================
-// POST: add new inventory item
-// ==========================
-export const addInventoryItem = async (req, res) => {
-  try {
-    const payload = {
-      ...req.body,
-      quantity: Number(req.body.quantity) || 0,
-      costPrice: Number(req.body.costPrice) || 0,
-      sellingPrice: Number(req.body.sellingPrice) || 0,
-      reorderLevel: Number(req.body.reorderLevel) || 10,
-      minimumStock: Number(req.body.minimumStock) || 5,
-      taxRate: Number(req.body.taxRate) || 16,
-      supplier: req.body.supplier || "Unknown",
-      expiry: req.body.expiry || null,
-      manufactureDate: req.body.manufactureDate || null,
-    };
+  Object.keys(req.body).forEach((k) => {
+    if (req.body[k] !== undefined) {
+      item[k] = k === "quantity" || k === "unitPrice" || k === "minStockLevel" ? Number(req.body[k]) : req.body[k];
+    }
+  });
 
-    payload.status = calculateStatus(payload);
+  item.status = calculateStatus(item);
+  const updated = await item.save();
+  res.json(updated);
+});
 
-    const newItem = new Inventory(payload);
-    await newItem.save();
-    res.status(201).json(newItem);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
+// ===== PUT /api/inventory/:id/restock =====
+export const restockInventoryItem = asyncHandler(async (req, res) => {
+  const item = await Inventory.findById(req.params.id);
+  if (!item) {
+    res.status(404);
+    throw new Error("Item not found");
   }
-};
+  const qty = Number(req.body.quantity);
+  if (isNaN(qty) || qty <= 0) {
+    res.status(400);
+    throw new Error("Invalid restock quantity");
+  }
+  item.quantity += qty;
+  if (req.body.batchNumber) item.batchNumber = req.body.batchNumber;
+  if (req.body.expiryDate) item.expiryDate = req.body.expiryDate;
+  item.status = calculateStatus(item);
+  const saved = await item.save();
+  res.json(saved);
+});
 
-// ==========================
-// PUT: update inventory item
-// ==========================
-export const updateInventoryItem = async (req, res) => {
-  try {
-    const item = await Inventory.findById(req.params.id);
-    if (!item) return res.status(404).json({ message: "Item not found" });
+// ===== PUT /api/inventory/:id/consume =====
+export const consumeInventoryItem = asyncHandler(async (req, res) => {
+  const { quantity, patientId, invoiceId } = req.body;
+  const item = await Inventory.findById(req.params.id);
 
-    Object.keys(req.body).forEach((key) => {
-      if (req.body[key] !== undefined) {
-        item[key] = key === "quantity" ? Number(req.body[key]) : req.body[key];
-      }
+  if (!item) {
+    res.status(404);
+    throw new Error("Item not found");
+  }
+
+  const qty = Number(quantity);
+  if (isNaN(qty) || qty <= 0 || qty > item.quantity) {
+    res.status(400);
+    throw new Error("Invalid consumption quantity");
+  }
+
+  // Deduct stock
+  item.quantity -= qty;
+  item.status = calculateStatus(item);
+  await item.save();
+
+  // Optional: attach to patient invoice
+  if (patientId) {
+    let invoice = invoiceId ? await Invoice.findById(invoiceId) : null;
+    if (!invoice) {
+      invoice = new Invoice({
+        patientId,
+        services: [],
+        subtotal: 0,
+        tax: 0,
+        discount: 0,
+        status: "unpaid",
+        date: new Date(),
+      });
+    }
+
+    invoice.services.push({
+      service: `${item.name}`,
+      qty,
+      unitPrice: item.unitPrice,
+      source: "pharmacy",
     });
 
-    item.status = calculateStatus(item);
-    await item.save();
-    res.json(item);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
+    await invoice.save();
   }
-};
 
-// ==========================
-// DELETE: remove inventory item
-// ==========================
-export const deleteInventoryItem = async (req, res) => {
-  try {
-    const deleted = await Inventory.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: "Item not found" });
-    res.json({ message: "Item deleted" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  res.json({ message: "Item dispensed successfully", item });
+});
+
+// ===== DELETE /api/inventory/:id =====
+export const deleteInventoryItem = asyncHandler(async (req, res) => {
+  const deleted = await Inventory.findByIdAndDelete(req.params.id);
+  if (!deleted) {
+    res.status(404);
+    throw new Error("Item not found");
   }
-};
+  res.json({ message: "Item deleted" });
+});
 
-// ==========================
-// PUT: restock inventory item
-// ==========================
-export const restockInventoryItem = async (req, res) => {
-  try {
-    const item = await Inventory.findById(req.params.id);
-    if (!item) return res.status(404).json({ message: "Item not found" });
-
-    const qty = Number(req.body.quantity);
-    if (isNaN(qty) || qty <= 0)
-      return res.status(400).json({ message: "Invalid quantity" });
-
-    item.quantity += qty;
-    item.status = calculateStatus(item);
-    await item.save();
-
-    res.json(item);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-};
-
-// ==========================
-// Pharmacy Module
-// ==========================
-export const getPharmacyInventory = async (req, res) => {
-  try {
-    const items = await Inventory.find();
-    const data = items.map((item) => ({
-      ...item.toObject(),
-      status: calculateStatus(item),
-    }));
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-export const dispenseInventoryItem = async (req, res) => {
-  try {
-    const { itemId, quantity, patientId } = req.body;
-    const item = await Inventory.findById(itemId);
-    if (!item) return res.status(404).json({ message: "Item not found" });
-
-    const qty = Number(quantity);
-    if (isNaN(qty) || qty <= 0 || qty > item.quantity)
-      return res.status(400).json({ message: "Invalid dispense quantity" });
-
-    // Deduct stock
-    item.quantity -= qty;
-    item.status = calculateStatus(item);
-    await item.save();
-
-    // Log dispense with patient ObjectId ref
-    const log = new Dispense({
-      medicineId: item._id,
-      name: item.name,
-      patientId: patientId || null, // <-- expects ObjectId (Patient._id)
-      quantity: qty,
-      dispensedBy: req.user ? req.user._id : null, // pharmacist/admin
-      date: new Date(),
-    });
-
-    await log.save();
-
-    // Populate references for response (optional)
-    const populatedLog = await log
-      .populate("dispensedBy", "name role")
-      .populate("patientId", "firstName lastName phone");
-
-    res.json({ item, log: populatedLog });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-};
-
-// ==========================
-// Inventory Reports
-// ==========================
-export const getInventoryReports = async (req, res) => {
-  try {
-    const items = await Inventory.find();
-    const data = items.map((item) => ({
-      id: item._id,
-      name: item.name,
-      category: item.category,
-      quantity: item.quantity,
-      unit: item.unit,
-      expiry: item.expiry ? item.expiry.toISOString() : "N/A",
-      supplier: item.supplier,
-      status: calculateStatus(item),
-    }));
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
+// ===== GET /api/inventory/reports =====
+export const getInventoryReports = asyncHandler(async (req, res) => {
+  const items = await Inventory.find();
+  const data = items.map((i) => ({
+    id: i._id,
+    name: i.name,
+    category: i.category,
+    quantity: i.quantity,
+    unit: i.unit,
+    expiryDate: i.expiryDate || null,
+    batchNumber: i.batchNumber || null,
+    supplier: i.supplier,
+    status: calculateStatus(i),
+  }));
+  res.json(data);
+});

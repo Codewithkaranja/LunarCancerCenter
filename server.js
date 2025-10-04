@@ -13,7 +13,9 @@ import invoiceRoutes from './routes/invoiceRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
 import prescriptionRoutes from './routes/prescriptionRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
-import pharmacyRoutes from './routes/pharmacyRoutes.js'; // ✅ add pharmacy routes
+import pharmacyRoutes from './routes/pharmacyRoutes.js';
+import labReportRoutes from './routes/labReportRoutes.js';       // ✅ new
+import consultationRoutes from './routes/consultationRoutes.js'; // ✅ new
 
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
@@ -37,7 +39,11 @@ app.use('/api/billing', invoiceRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/pharmacy', pharmacyRoutes); // ✅ mount pharmacy routes
+app.use('/api/pharmacy', pharmacyRoutes);
+
+// ✅ New routes
+app.use('/api/labreports', labReportRoutes);
+app.use('/api/consultations', consultationRoutes);
 
 // Test route
 app.get('/', (req, res) => res.send('Backend is running!'));
@@ -46,14 +52,25 @@ app.get('/', (req, res) => res.send('Backend is running!'));
 app.use(notFound);
 app.use(errorHandler);
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, { 
-  useNewUrlParser: true, 
-  useUnifiedTopology: true 
-})
-.then(() => console.log('✅ MongoDB Connected...'))
-.catch(err => console.error('❌ MongoDB connection error:', err));
+// ==========================
+// MongoDB Connection
+// ==========================
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then((conn) => {
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    console.log(`📂 Database: ${conn.connection.name}`);
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err.message);
+    process.exit(1);
+  });
 
-// Start server
+// ==========================
+// Start Server
+// ==========================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

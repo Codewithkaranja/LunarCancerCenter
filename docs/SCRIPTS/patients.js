@@ -208,7 +208,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Initialize patient data
 // Initialize patient data
-async function initializePatients(page = 1, limit = 5) {
+/*async function initializePatients(page = 1, limit = 5) {
   try {
     const response = await fetch(`${API_BASE}/api/patients?page=${page}&limit=${limit}`);
     if (!response.ok) throw new Error("Failed to fetch patients");
@@ -234,7 +234,7 @@ async function initializePatients(page = 1, limit = 5) {
     renderPatients();
     updatePagination(1, 1, 0);
   }
-}
+}*/
 
 
 
@@ -301,103 +301,75 @@ async function handleSearch() {
   const diagnosisFilter = document.getElementById('filter-diagnosis').value;
   const statusFilter = document.getElementById('filter-status').value;
 
+  currentPage = 1;
+
+  const query = new URLSearchParams({
+    search: searchText,
+    diagnosis: diagnosisFilter,
+    status: statusFilter,
+    sortColumn: currentSort.column || '',
+    sortDirection: currentSort.direction || 'asc',
+    page: currentPage,
+    limit: patientsPerPage
+  });
+
   try {
-    // Always reset to page 1 on new search
-    currentPage = 1;
-
-    const query = new URLSearchParams({
-      search: searchText,
-      diagnosis: diagnosisFilter,
-      status: statusFilter,
-      sortColumn: currentSort.column || '',
-      sortDirection: currentSort.direction || 'asc',
-      page: currentPage,
-      limit: patientsPerPage
-    });
-
     const response = await fetch(`${API_BASE}/api/patients?${query.toString()}`);
-    if (!response.ok) throw new Error('Failed to fetch filtered patients');
+    if (!response.ok) throw new Error("Failed to fetch filtered patients");
     const data = await response.json();
 
     filteredPatients = data.patients || [];
-    renderPatients();
+    totalCount = data.totalCount || filteredPatients.length;
 
-    // Pass all 3 params so pagination works
-    updatePagination(data.page, data.totalPages, data.totalCount);
+    renderPatients();
+    updatePagination(data.page || 1, data.totalPages || 1, totalCount);
   } catch (error) {
     console.error(error);
-    alert('Search failed');
+    alert("Search failed");
   }
 }
 
 
+
 // Handle sorting
+// Sorting
 function handleSort(column) {
-  const columnMap = {
+  const map = {
     'Patient ID': 'id',
     'Name': 'lastName',
-    'Age/Gender': 'age',        // backend can sort by age
+    'Age/Gender': 'age',
     'Diagnosis': 'diagnosis',
     'Stage': 'stage',
     'Doctor': 'doctor',
     'Next Appointment': 'nextAppointment',
     'Status': 'status',
-    'Created At': 'createdAt'   // ✅ added for patient creation date
+    'Created At': 'createdAt'
   };
+  const field = map[column];
+  if (!field) return;
 
-  const sortField = columnMap[column];
-  if (!sortField) return;
-
-  // Toggle or set sort
-  if (currentSort.column === sortField) {
-    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-  } else {
-    currentSort.column = sortField;
-    currentSort.direction = 'asc';
-  }
-
-  // 🔑 Apply sorting via backend fetch
-  const hasFilters =
-    document.getElementById("search-name").value ||
-    document.getElementById("filter-diagnosis").value ||
-    document.getElementById("filter-status").value;
-
-  if (hasFilters) {
-    handleSearch();
-  } else {
-    initializePatients(currentPage, patientsPerPage);
-  }
+  const direction = currentSort.column === field && currentSort.direction === 'asc' ? 'desc' : 'asc';
+  applySort(field, direction);
 }
 
-
-
-// Handle sort dropdown
 function handleSortDropdown(value) {
-  const sortMap = {
+  const map = {
     'Sort by: Newest First': { field: 'createdAt', direction: 'desc' },
     'Sort by: Oldest First': { field: 'createdAt', direction: 'asc' },
     'Sort by: Name A-Z': { field: 'lastName', direction: 'asc' },
     'Sort by: Name Z-A': { field: 'lastName', direction: 'desc' },
-    'Sort by: Patient ID': { field: 'patientId', direction: 'asc' } // ✅ new option
+    'Sort by: Patient ID': { field: 'id', direction: 'asc' }
   };
-  
-  const sortConfig = sortMap[value];
+  const sortConfig = map[value];
   if (!sortConfig) return;
 
-  currentSort.column = sortConfig.field;
-  currentSort.direction = sortConfig.direction;
+  applySort(sortConfig.field, sortConfig.direction);
+}
 
-  // 🔑 Apply sorting via backend fetch
-  const hasFilters =
-    document.getElementById("search-name").value ||
-    document.getElementById("filter-diagnosis").value ||
-    document.getElementById("filter-status").value;
-
-  if (hasFilters) {
-    handleSearch();
-  } else {
-    initializePatients(currentPage, patientsPerPage);
-  }
+function applySort(field, direction) {
+  currentSort.column = field;
+  currentSort.direction = direction;
+  loadPatients(currentPage);
 }
 
 
@@ -413,86 +385,40 @@ function renderPatients(patients = filteredPatients) {
 
   patients.forEach(patient => {
     const row = document.createElement('tr');
-
-    // Format status badge
     const statusClass = `status-${patient.status}`;
-    const statusText = patient.status
-      ? patient.status.charAt(0).toUpperCase() + patient.status.slice(1)
-      : "N/A";
-
-    const patientId = normalizeId(patient); // 🔑 still use your helper
+    const statusText = patient.status ? patient.status.charAt(0).toUpperCase() + patient.status.slice(1) : 'N/A';
+    const patientId = normalizeId(patient);
 
     row.innerHTML = `
       <td>${patientId}</td>
       <td>${patient.firstName} ${patient.lastName}</td>
-      <td>${patient.age || "N/A"}/${patient.gender || "N/A"}</td>
-      <td>${patient.diagnosis || "N/A"}</td>
-      <td>${patient.stage || "N/A"}</td>
-      <td>${patient.doctor || "N/A"}</td>
+      <td>${patient.age || 'N/A'}/${patient.gender || 'N/A'}</td>
+      <td>${patient.diagnosis || 'N/A'}</td>
+      <td>${patient.stage || 'N/A'}</td>
+      <td>${patient.doctor || 'N/A'}</td>
       <td>${formatDate(patient.nextAppointment)}</td>
       <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       <td class="action-cell">
-        ${checkPermission('view_patients') ? 
-          `<button class="action-btn btn-view" data-id="${patientId}">
-            <i class="fas fa-eye"></i> View
-          </button>` : ''}
-        ${checkPermission('edit_patients') ? 
-          `<button class="action-btn btn-edit" data-id="${patientId}">
-            <i class="fas fa-edit"></i> Edit
-          </button>` : ''}
-        ${checkPermission('view_prescriptions') ? 
-          `<button class="action-btn btn-prescription" data-id="${patientId}">
-            <i class="fas fa-prescription-bottle-alt"></i> Prescription
-          </button>` : ''}
-        ${checkPermission('view_billing') ? 
-          `<button class="action-btn btn-billing" data-id="${patientId}">
-            <i class="fas fa-file-invoice"></i> Billing
-          </button>` : ''}
+        ${checkPermission('view_patients') ? `<button class="action-btn btn-view" data-id="${patientId}"><i class="fas fa-eye"></i> View</button>` : ''}
+        ${checkPermission('edit_patients') ? `<button class="action-btn btn-edit" data-id="${patientId}"><i class="fas fa-edit"></i> Edit</button>` : ''}
+        ${checkPermission('view_prescriptions') ? `<button class="action-btn btn-prescription" data-id="${patientId}"><i class="fas fa-prescription-bottle-alt"></i> Prescription</button>` : ''}
+        ${checkPermission('view_billing') ? `<button class="action-btn btn-billing" data-id="${patientId}"><i class="fas fa-file-invoice"></i> Billing</button>` : ''}
       </td>
     `;
-
     tbody.appendChild(row);
   });
 
-  // Add event listeners to action buttons
   addActionButtonListeners();
 }
 
 
-// Add event listeners to action buttons
 function addActionButtonListeners() {
-  // View button
-  document.querySelectorAll('.btn-view').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      viewPatient(id);
-    });
-  });
-
-  // Edit button
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      editPatient(id);
-    });
-  });
-
-  // Prescription button
-  document.querySelectorAll('.btn-prescription').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      handlePrescription(id);
-    });
-  });
-
-  // Billing button
-  document.querySelectorAll('.btn-billing').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      handleBilling(id);
-    });
-  });
+  document.querySelectorAll('.btn-view').forEach(btn => btn.addEventListener('click', () => viewPatient(btn.dataset.id)));
+  document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', () => editPatient(btn.dataset.id)));
+  document.querySelectorAll('.btn-prescription').forEach(btn => btn.addEventListener('click', () => handlePrescription(btn.dataset.id)));
+  document.querySelectorAll('.btn-billing').forEach(btn => btn.addEventListener('click', () => handleBilling(btn.dataset.id)));
 }
+
 
 
 // Handle pagination
@@ -500,164 +426,81 @@ function addActionButtonListeners() {
 async function handlePagination(button) {
   const totalPages = Math.ceil(totalCount / patientsPerPage);
 
-  if (button.textContent.includes('Previous') && currentPage > 1) {
-    currentPage--;
-  } else if (button.textContent.includes('Next') && currentPage < totalPages) {
-    currentPage++;
-  } else if (!isNaN(button.textContent)) {
-    currentPage = parseInt(button.textContent, 10);
-  } else {
-    return;
-  }
+  if (button.textContent.includes('Previous') && currentPage > 1) currentPage--;
+  else if (button.textContent.includes('Next') && currentPage < totalPages) currentPage++;
+  else if (!isNaN(button.textContent)) currentPage = parseInt(button.textContent, 10);
+  else return;
+
+  loadPatients(currentPage);
+}
+
+async function loadPatients(page = 1) {
+  const searchText = document.getElementById("search-name").value.toLowerCase();
+  const diagnosisFilter = document.getElementById("filter-diagnosis").value;
+  const statusFilter = document.getElementById("filter-status").value;
+
+  const query = new URLSearchParams({
+    search: searchText,
+    diagnosis: diagnosisFilter,
+    status: statusFilter,
+    sortColumn: currentSort.column || '',
+    sortDirection: currentSort.direction || 'asc',
+    page: page,
+    limit: patientsPerPage
+  });
 
   try {
-    // ✅ Fetch patients from backend with pagination
-    const response = await fetch(
-      `${API_BASE}/api/patients?page=${currentPage}&limit=${patientsPerPage}`
-    );
-    if (!response.ok) throw new Error("Failed to fetch patients");
+    const res = await fetch(`${API_BASE}/api/patients?${query.toString()}`);
+    if (!res.ok) throw new Error("Failed to fetch patients");
+    const data = await res.json();
 
-    const data = await response.json();
-    allPatients = data.patients;      // store new list
-    totalCount = data.totalCount;     // keep count updated
-    filteredPatients = [...allPatients]; // reset filters if needed
+    allPatients = data.patients || [];
+    filteredPatients = [...allPatients];
+    totalCount = data.totalCount || filteredPatients.length;
 
     renderPatients();
-    renderPaginationControls(); // optional: re-render buttons, highlight current page
+    updatePagination(data.page || 1, data.totalPages || 1, totalCount);
   } catch (err) {
     console.error(err);
-    alert("Error loading patients.");
-  }
-}
-
-async function fetchPatients(page = 1, limit = 5) {
-  try {
-    const response = await fetch(`${API_BASE}/api/patients?page=${page}&limit=${limit}`);
-    if (!response.ok) throw new Error('Failed to fetch patients');
-
-    const data = await response.json();
-
-    // Backend should return { patients: [...], totalCount: 100 }
-    allPatients = data.patients;
-    filteredPatients = [...allPatients]; // optional if you want to allow frontend search/filter
-    window.totalCount = data.totalCount; 
-
+    allPatients = [];
+    filteredPatients = [];
+    totalCount = 0;
     renderPatients();
-    updatePagination(data.totalCount);
-  } catch (error) {
-    console.error('Error fetching patients:', error);
+    updatePagination(1, 1, 0);
   }
 }
+
+
+
 
 
 // Update pagination controls
 function updatePagination(current, totalPages, totalCount) {
-  const paginationContainer = document.getElementById("pagination");
-  const paginationInfo = document.getElementById("pagination-info");
-
-  // Update global state
+  const container = document.getElementById("pagination");
+  const info = document.getElementById("pagination-info");
   currentPage = current;
 
-  // ✅ Pagination info
   const startIndex = (currentPage - 1) * patientsPerPage + 1;
   const endIndex = Math.min(currentPage * patientsPerPage, totalCount);
-  paginationInfo.textContent =
-    totalCount > 0
-      ? `Showing ${startIndex}-${endIndex} of ${totalCount} patients`
-      : "No patients found";
+  info.textContent = totalCount > 0 ? `Showing ${startIndex}-${endIndex} of ${totalCount} patients` : "No patients found";
 
-  // No buttons if no patients
-  if (totalPages <= 1) {
-    paginationContainer.innerHTML = "";
-    return;
-  }
+  if (totalPages <= 1) { container.innerHTML = ''; return; }
 
-  // ✅ Generate pagination buttons
-  let paginationHTML = "";
-
-  // Previous button
-  paginationHTML += `
-    <button class="pagination-btn prev-btn ${currentPage === 1 ? "disabled" : ""}" 
-      ${currentPage === 1 ? "disabled" : ""}>
-      &laquo; Previous
-    </button>`;
-
-  // Page number buttons with ellipses
+  let html = `<button class="pagination-btn prev-btn ${currentPage===1?'disabled':''}">&laquo; Previous</button>`;
   const maxVisiblePages = 5;
-  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages/2));
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages -1);
+  if (endPage - startPage +1 < maxVisiblePages) startPage = Math.max(1, endPage - maxVisiblePages +1);
+  if (startPage>1) html+= `<button class="pagination-btn page-btn" data-page="1">1</button><span class="ellipsis">...</span>`;
+  for(let i=startPage;i<=endPage;i++) html+= `<button class="pagination-btn page-btn ${i===currentPage?'active':''}" data-page="${i}">${i}</button>`;
+  if(endPage<totalPages) html+= `<span class="ellipsis">...</span><button class="pagination-btn page-btn" data-page="${totalPages}">${totalPages}</button>`;
+  html+= `<button class="pagination-btn next-btn ${currentPage===totalPages?'disabled':''}">Next &raquo;</button>`;
+  container.innerHTML = html;
 
-  if (endPage - startPage + 1 < maxVisiblePages) {
-    startPage = Math.max(1, endPage - maxVisiblePages + 1);
-  }
-
-  // Always show first page if not in range
-  if (startPage > 1) {
-    paginationHTML += `
-      <button class="pagination-btn page-btn" data-page="1">1</button>
-      <span class="ellipsis">...</span>`;
-  }
-
-  for (let i = startPage; i <= endPage; i++) {
-    paginationHTML += `
-      <button 
-        class="pagination-btn page-btn ${i === currentPage ? "active" : ""}" 
-        data-page="${i}">
-        ${i}
-      </button>`;
-  }
-
-  // Always show last page if not in range
-  if (endPage < totalPages) {
-    paginationHTML += `
-      <span class="ellipsis">...</span>
-      <button class="pagination-btn page-btn" data-page="${totalPages}">
-        ${totalPages}
-      </button>`;
-  }
-
-  // Next button
-  paginationHTML += `
-    <button class="pagination-btn next-btn ${currentPage === totalPages ? "disabled" : ""}" 
-      ${currentPage === totalPages ? "disabled" : ""}>
-      Next &raquo;
-    </button>`;
-
-  paginationContainer.innerHTML = paginationHTML;
-
-  // ✅ Helper: decide whether to use search or normal load
-  const loadPage = (page) => {
-    const hasFilters =
-      document.getElementById("search-name").value ||
-      document.getElementById("filter-diagnosis").value ||
-      document.getElementById("filter-status").value;
-
-    if (hasFilters) {
-      currentPage = page;
-      handleSearch();
-    } else {
-      initializePatients(page, patientsPerPage);
-    }
-  };
-
-  // ✅ Add event listeners
-  paginationContainer.querySelector(".prev-btn")?.addEventListener("click", () => {
-    if (currentPage > 1) loadPage(currentPage - 1);
-  });
-
-  paginationContainer.querySelectorAll(".page-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const page = parseInt(btn.dataset.page, 10);
-      if (page !== currentPage) loadPage(page);
-    });
-  });
-
-  paginationContainer.querySelector(".next-btn")?.addEventListener("click", () => {
-    if (currentPage < totalPages) loadPage(currentPage + 1);
-  });
+  container.querySelector(".prev-btn")?.addEventListener("click", ()=>{ if(currentPage>1) loadPatients(currentPage-1)});
+  container.querySelectorAll(".page-btn").forEach(btn=>btn.addEventListener("click",()=>{ const p=parseInt(btn.dataset.page,10); if(p!==currentPage) loadPatients(p)}));
+  container.querySelector(".next-btn")?.addEventListener("click", ()=>{ if(currentPage<totalPages) loadPatients(currentPage+1)});
 }
-
-
 
 
 
@@ -762,9 +605,9 @@ function calculateDOB(age) {
 // Save patient (add or edit)
 // Helper to normalize id/_id
 // Helper to normalize id/_id (used when rendering lists)
-function normalizeId(patient) {
+/*function normalizeId(patient) {
   return patient.id || patient._id;
-}
+}*/
 
 // Save patient (add or edit)
 // Save patient (add or edit)
@@ -878,7 +721,7 @@ function generatePatientId() {
 // Handle prescription
 function handlePrescription(patientId) {
   // In a real application, this would redirect to prescriptions page or open a modal
-  window.location.href = `prescriptions.html?patientId=${patientId}`;
+  window.location.href = `pharmacy.html?patientId=${patientId}`;
 }
 
 // Handle billing

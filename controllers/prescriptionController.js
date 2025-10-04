@@ -1,165 +1,221 @@
 // controllers/prescriptionController.js
-import Prescription from '../models/Prescription.js';
-import Patient from '../models/Patient.js';
-import Inventory from '../models/Inventory.js';
+import Prescription from "../models/Prescription.js";
+import Inventory from "../models/Inventory.js";
+import Dispense from "../models/Dispense.js";
+import Patient from "../models/Patient.js";
+import asyncHandler from "express-async-handler";
+import mongoose from "mongoose";
+import { calculateStatus } from "./inventoryController.js";
+import Invoice from "../models/Invoice.js";
 
 // ==========================
-// Create Prescription
+// GET /api/prescriptions?status=pending
 // ==========================
-export const createPrescription = async (req, res) => {
+export const getPrescriptions = asyncHandler(async (req, res) => {
+  const { status } = req.query;
+  const filter = status ? { status } : {};
+
+  const prescriptions = await Prescription.find(filter)
+    .populate("patient", "firstName lastName phone")
+    .populate("doctor", "name specialization")
+    .sort({ createdAt: -1 });
+
+  res.json(prescriptions);
+});
+
+// ==========================
+// GET /api/prescriptions/:id
+// ==========================
+export const getPrescriptionById = asyncHandler(async (req, res) => {
+  const prescription = await Prescription.findById(req.params.id)
+    .populate("patient", "firstName lastName phone")
+    .populate("doctor", "name specialization");
+
+  if (!prescription) {
+    res.status(404);
+    throw new Error("Prescription not found");
+  }
+
+  res.json(prescription);
+});
+
+// ==========================
+// POST /api/prescriptions
+// ==========================
+export const createPrescription = asyncHandler(async (req, res) => {
+  const { patientId, doctorId, medicines } = req.body;
+
+  // Validate patient
+  const patient = await Patient.findById(patientId);
+  if (!patient) {
+    res.status(404);
+    throw new Error("Patient not found");
+  }
+
+  const payload = {
+    patient: patientId,
+    doctor: doctorId || req.user?._id,
+    medicines: medicines || [],
+    status: "pending",
+    date: new Date(),
+  };
+
+  const created = await Prescription.create(payload);
+  const populated = await Prescription.findById(created._id)
+    .populate("patient", "firstName lastName")
+    .populate("doctor", "name");
+
+  res.status(201).json(populated);
+});
+
+// ==========================
+// POST /api/prescriptions/:id/dispense
+// Dispense prescription + generate invoice
+// ==========================
+export const dispensePrescriptionTransactional = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const prescription = await Prescription.findById(id).populate("patient", "firstName lastName");
+  if (!prescription) throw new Error("Prescription not found");
+  if (!prescription.medicines?.length) throw new Error("Prescription has no medicines");
+
+  const session = await mongoose.startSession();
   try {
-    const { patientId, items, status, billStatus } = req.body;
+    await session.withTransaction(async () => {
+      const dispenseLogs = [];
+      let totalAmount = 0;
+      const invoiceItems = [];
 
-    if (!patientId || !items || items.length === 0) {
-      return res.status(400).json({ message: 'Patient and medications are required' });
-    }
+      for (const medEntry of prescription.medicines) {
+        const medId = medEntry.medicineId;
+        const qty = Number(medEntry.quantity);
+        if (!medId || !qty || qty <= 0) throw new Error("Invalid medicine entry");
 
-    // Map items to inventory references
-    const mappedItems = items.map(item => ({
-      medication: item.medicationId, // must match frontend field
-      dosage: item.dosage,
-      frequency: item.frequency,
-      duration: item.duration,
-      quantity: item.quantity,
-      instructions: item.instructions,
-    }));
+        // Fetch medicine
+        const medicine = await Inventory.findById(medId).session(session);
+        if (!medicine) throw new Error(`${medEntry.name || medId} not found`);
+        if (medicine.category !== "drug") throw new Error(`${medicine.name} is not a drug`);
+        if (medicine.quantity < qty) throw new Error(`Insufficient stock for ${medicine.name}`);
 
-    const prescription = await Prescription.create({
-      patientId,
-      items: mappedItems,
-      status: status || 'draft',
-      billStatus: billStatus || 'pending',
+        // Deduct stock
+        medicine.quantity -= qty;
+        medicine.status = calculateStatus(medicine);
+        await medicine.save({ session });
+
+        // Create dispense log
+        const [log] = await Dispense.create(
+          [
+            {
+              medicineId: medicine._id,
+              name: medicine.name,
+              quantity: qty,
+              dispensedBy: req.user?._id || null,
+              patientId: prescription.patient._id,
+              date: new Date(),
+            },
+          ],
+          { session }
+        );
+        dispenseLogs.push(log);
+
+        // Prepare invoice item
+        invoiceItems.push({
+          medicineId: medicine._id,
+          name: medicine.name,
+          quantity: qty,
+          price: medicine.sellingPrice,
+        });
+        totalAmount += qty * medicine.sellingPrice;
+      }
+
+      // Mark prescription dispensed
+      prescription.status = "dispensed";
+      prescription.dispensedAt = new Date();
+      await prescription.save({ session });
+
+      // Create invoice
+      const [invoice] = await Invoice.create(
+        [
+          {
+            patientId: prescription.patient._id,
+            items: invoiceItems,
+            totalAmount,
+            status: "unpaid",
+            date: new Date(),
+            relatedPrescriptionId: prescription._id,
+            relatedDispenseIds: dispenseLogs.map((d) => d._id),
+          },
+        ],
+        { session }
+      );
+
+      // Populate invoice patient
+      const populatedInvoice = await Invoice.findById(invoice._id).populate(
+        "patientId",
+        "firstName lastName phone"
+      );
+
+      res.json({
+        message: "Prescription dispensed and billed",
+        prescription,
+        dispenseLogs,
+        invoice: populatedInvoice,
+      });
     });
-
-    const populatedPrescription = await prescription
-      .populate('patientId', 'firstName lastName')
-      .populate('items.medication', 'name category quantity unit');
-
-    res.status(201).json(populatedPrescription);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to create prescription', error });
+  } catch (err) {
+    res.status(400).json({ message: err.message || "Transaction failed" });
+  } finally {
+    session.endSession();
   }
-};
+});
 
 // ==========================
-// Get All Prescriptions
+// GET /api/prescriptions/patient/:patientId
 // ==========================
-export const getAllPrescriptions = async (req, res) => {
-  try {
-    const { status, dateFrom, dateTo } = req.query;
-    const filter = {};
+export const getPrescriptionsByPatient = asyncHandler(async (req, res) => {
+  const { patientId } = req.params;
+  const prescriptions = await Prescription.find({ patient: patientId })
+    .populate("doctor", "name specialization")
+    .sort({ createdAt: -1 });
 
-    if (status) filter.status = status;
-    if (dateFrom || dateTo) filter.createdAt = {};
-    if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
-    if (dateTo) filter.createdAt.$lte = new Date(dateTo);
+  res.json(prescriptions);
+});
 
-    const prescriptions = await Prescription.find(filter)
-      .populate('patientId', 'firstName lastName')
-      .populate('items.medication', 'name category quantity unit');
+// ==========================
+// GET /api/prescriptions/summary
+// ==========================
+export const getPrescriptionSummary = asyncHandler(async (req, res) => {
+  const summary = await Prescription.aggregate([
+    { $group: { _id: "$status", count: { $sum: 1 } } },
+  ]);
 
-    res.json(prescriptions);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to fetch prescriptions', error });
+  const revenue = await Invoice.aggregate([
+    { $group: { _id: null, totalRevenue: { $sum: "$totalAmount" } } },
+  ]);
+
+  res.json({
+    statusSummary: summary,
+    revenue: revenue[0]?.totalRevenue || 0,
+  });
+});
+
+// ==========================
+// PATCH /api/prescriptions/:id/cancel
+// ==========================
+export const cancelPrescription = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const prescription = await Prescription.findById(id);
+
+  if (!prescription) {
+    res.status(404);
+    throw new Error("Prescription not found");
   }
-};
-
-// ==========================
-// Get Prescription By ID
-// ==========================
-export const getPrescriptionById = async (req, res) => {
-  try {
-    const prescription = await Prescription.findById(req.params.id)
-      .populate('patientId', 'firstName lastName')
-      .populate('items.medication', 'name category quantity unit');
-
-    if (!prescription) return res.status(404).json({ message: 'Prescription not found' });
-
-    res.json(prescription);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to fetch prescription', error });
+  if (prescription.status === "dispensed") {
+    res.status(400);
+    throw new Error("Cannot cancel a dispensed prescription");
   }
-};
 
-// ==========================
-// Update Prescription
-// ==========================
-export const updatePrescription = async (req, res) => {
-  try {
-    const prescription = await Prescription.findById(req.params.id);
-    if (!prescription) return res.status(404).json({ message: 'Prescription not found' });
+  prescription.status = "cancelled";
+  await prescription.save();
 
-    const { items, status, billStatus } = req.body;
-
-    // Update items if provided
-    if (items) {
-      prescription.items = items.map(item => ({
-        medication: item.medicationId,
-        dosage: item.dosage,
-        frequency: item.frequency,
-        duration: item.duration,
-        quantity: item.quantity,
-        instructions: item.instructions,
-      }));
-    }
-
-    if (status) prescription.status = status;
-    if (billStatus) prescription.billStatus = billStatus;
-
-    // ===== Batch stock validation & deduction if dispensed =====
-    if (status === 'dispensed') {
-      // Validate all items first
-      for (const item of prescription.items) {
-        const inventoryItem = await Inventory.findById(item.medication);
-        if (!inventoryItem) {
-          return res.status(404).json({ message: `Inventory item not found for medicationId: ${item.medication}` });
-        }
-        if (inventoryItem.quantity < item.quantity) {
-          return res.status(400).json({
-            message: `Not enough stock for ${inventoryItem.name}. Available: ${inventoryItem.quantity}`,
-          });
-        }
-      }
-
-      // Deduct stock
-      for (const item of prescription.items) {
-        const inventoryItem = await Inventory.findById(item.medication);
-        inventoryItem.quantity -= item.quantity;
-        await inventoryItem.save();
-      }
-    }
-
-    const updatedPrescription = await prescription.save();
-
-    const populatedPrescription = await updatedPrescription
-      .populate('patientId', 'firstName lastName')
-      .populate('items.medication', 'name category quantity unit');
-
-    res.json(populatedPrescription);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to update prescription', error });
-  }
-};
-
-// ==========================
-// Cancel Prescription
-// ==========================
-export const deletePrescription = async (req, res) => {
-  try {
-    const prescription = await Prescription.findById(req.params.id);
-    if (!prescription) return res.status(404).json({ message: 'Prescription not found' });
-
-    prescription.status = 'cancelled';
-    prescription.billStatus = 'cancelled';
-    await prescription.save();
-
-    res.json({ message: 'Prescription cancelled successfully' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to cancel prescription', error });
-  }
-};
+  res.json({ message: "Prescription cancelled", prescription });
+});

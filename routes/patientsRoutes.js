@@ -1,3 +1,4 @@
+// routes/patientRoutes.js
 import express from "express";
 import {
   getAllPatients,
@@ -6,14 +7,11 @@ import {
   updatePatient,
   deletePatient,
 } from "../controllers/patientController.js";
-/*import { protect, authorize } from "../middleware/authMiddleware.js";*/
+// import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
- 
-// Protect all routes
-//router.use(protect);
 
-// Middleware: validate and normalize query params for GET /
+// ✅ Middleware: validate & normalize query params
 const validatePatientQuery = (req, res, next) => {
   let {
     page = 1,
@@ -22,6 +20,7 @@ const validatePatientQuery = (req, res, next) => {
     sortColumn = "createdAt",
   } = req.query;
 
+  // normalize numbers
   page = parseInt(page);
   limit = parseInt(limit);
 
@@ -29,9 +28,9 @@ const validatePatientQuery = (req, res, next) => {
   if (isNaN(limit) || limit < 1) limit = 5;
   if (!["asc", "desc"].includes(sortDirection)) sortDirection = "desc";
 
-  // Map frontend columns to DB fields
+  // ✅ Map frontend column names to DB fields
   const columnMap = {
-    "Patient ID": "_id", // ✅ use Mongo's default
+    "Patient ID": "patientId", // 🔥 friendly ID
     Name: "lastName",
     "Age/Gender": "age",
     Diagnosis: "diagnosis",
@@ -41,42 +40,31 @@ const validatePatientQuery = (req, res, next) => {
     Status: "status",
   };
 
-  sortColumn = columnMap[sortColumn] || sortColumn;
-
   req.query.page = page;
   req.query.limit = limit;
   req.query.sortDirection = sortDirection;
-  req.query.sortColumn = sortColumn;
+  req.query.sortColumn = columnMap[sortColumn] || sortColumn;
 
   next();
 };
 
+// =====================
+// Patient Routes
+// =====================
+
 // GET all patients (with search, filter, pagination, sorting)
-router.get(
-  "/",
-  /*authorize("admin", "nurse", "doctor", "receptionist", "pharmacist"),*/
-  validatePatientQuery,
-  getAllPatients
-);
+router.get("/", validatePatientQuery, getAllPatients);
 
 // CREATE a new patient
-router.post(
-  "/",
-  /*authorize("admin", "nurse", "doctor", "receptionist", "pharmacist"),*/
-  createPatient
-);
+router.post("/", createPatient);
 
-// GET a single patient by ID
-router.get("/:id", getPatientById);
+// GET a single patient by patientId
+router.get("/:patientId", getPatientById);
 
-// UPDATE a patient
-router.put(
-  "/:id",
-  /*authorize("admin", "nurse", "doctor", "receptionist", "pharmacist"),*/
-  updatePatient
-);
+// UPDATE a patient by patientId
+router.put("/:patientId", updatePatient);
 
-// DELETE a patient (admin only)
-router.delete("/:id", /*authorize("admin"),*/ deletePatient);
+// DELETE a patient by patientId
+router.delete("/:patientId", deletePatient);
 
 export default router;

@@ -2,46 +2,46 @@ import mongoose from "mongoose";
 
 const inventorySchema = new mongoose.Schema(
   {
-    id: { type: String, required: true, unique: true },
-    name: { type: String, required: true },
-    category: { type: String, enum: ["drug", "consumable", "equipment"], required: true },
+    name: { type: String, required: true, trim: true },
+    category: {
+      type: String,
+      enum: ["drug", "consumable", "equipment"],
+      required: true,
+    },
     quantity: { type: Number, required: true, default: 0 },
-    unit: { type: String, required: true },
-    expiry: { type: Date, default: null },
-    supplier: { type: String, default: "Unknown" },
+    unit: { type: String, required: true }, // e.g., tablets, ml, pcs
 
-    // Optional details
-    description: { type: String, default: "" },
+    // Dates
+    expiryDate: { type: Date },          // matches controller
+    manufactureDate: { type: Date },
 
     // Supplier Info
-    supplierContact: { type: String, default: "" },
-    supplierEmail: { type: String, default: "" },
+    supplier: {
+      name: { type: String, default: "Unknown" },
+      contact: { type: String, default: "" },
+      email: { type: String, default: "" },
+    },
+
     batchNumber: { type: String, default: "" },
     manufacturer: { type: String, default: "" },
-    manufactureDate: { type: Date, default: null },
 
-    // Pricing & Stock
+    // Pricing
     costPrice: { type: Number, default: 0 },
-    sellingPrice: { type: Number, default: 0 },
-    reorderLevel: { type: Number, default: 10 },
-    minimumStock: { type: Number, default: 5 },
-    taxRate: { type: Number, default: 16 },
-    insuranceCovered: { type: String, enum: ["yes", "no", "partial"], default: "no" },
+    unitPrice: { type: Number, default: 0 }, // matches controller
 
-    // Status (computed)
-    status: { type: String, enum: ["instock", "low", "out", "expired"], default: "instock" },
+    // Stock Management
+    minStockLevel: { type: Number, default: 10 }, // matches controller
   },
   { timestamps: true }
 );
 
-// Middleware to calculate status
-inventorySchema.pre("save", function (next) {
+// Virtual status (matches controller logic)
+inventorySchema.virtual("status").get(function () {
   const today = new Date();
-  if (this.quantity === 0) this.status = "out";
-  else if (this.expiry && this.expiry < today) this.status = "expired";
-  else if (this.quantity < this.reorderLevel) this.status = "low";
-  else this.status = "instock";
-  next();
+  if (!this.quantity || this.quantity <= 0) return "out-of-stock";
+  if (this.expiryDate && this.expiryDate < today) return "expired";
+  if (this.quantity <= this.minStockLevel) return "low";
+  return "adequate";
 });
 
 export default mongoose.model("Inventory", inventorySchema);

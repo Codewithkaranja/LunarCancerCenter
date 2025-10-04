@@ -1,27 +1,33 @@
+// routes/invoiceRoutes.js
 import express from "express";
-import { 
-  getInvoices, 
-  createInvoice, 
-  updateInvoice, 
-  deleteInvoice, 
-  getInvoiceById, 
-  exportInvoicesCSV, 
-  exportInvoicesPDF 
-} from '../controllers/invoiceController.js';
+import {
+  getInvoices,
+  createInvoice,
+  updateInvoice,
+  deleteInvoice,
+  getInvoiceById,
+  exportInvoicesCSV,
+  exportInvoicesPDF,
+  getInvoiceSummary,
+  markInvoicePaid
+} from "../controllers/invoiceController.js";
+
+import { validateInvoiceQuery } from "../middleware/validateInvoiceQuery.js";
 
 const router = express.Router();
 
-// ======= Test CRUD routes without auth =======
 router.route("/")
-  .get(getInvoices)         // Get all invoices
-  .post(createInvoice);     // Create invoice
+  .get(validateInvoiceQuery, getInvoices)   // ✅ with validation
+  .post(createInvoice);
 
 router.route("/:id")
-  .get(getInvoiceById)      // Get invoice by ID
-  .put(updateInvoice)       // Update invoice
-  .delete(deleteInvoice);   // Delete invoice
+  .get(getInvoiceById)
+  .put(updateInvoice)
+  .delete(deleteInvoice);
 
-// Export (optional, for testing)
+router.put("/:id/pay", markInvoicePaid);
+router.get("/summary/report", getInvoiceSummary);
+
 router.get("/export/csv", exportInvoicesCSV);
 router.get("/export/pdf", exportInvoicesPDF);
 

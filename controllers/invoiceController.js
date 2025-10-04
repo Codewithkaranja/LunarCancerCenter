@@ -1,20 +1,57 @@
+// controllers/invoiceController.js
 import Invoice from "../models/Invoice.js";
 import { Parser as Json2CsvParser } from "json2csv";
 import PDFDocument from "pdfkit";
+import mongoose from "mongoose";
 
 // ===============================
-// Get all invoices
+// Get all invoices (with filters, pagination)
 // ===============================
 export const getInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find()
-      .populate([
-        { path: "patientId", select: "firstName lastName phone" },
-        { path: "createdBy", select: "name role email" },
-      ])
+    const { status, patient, from, to, page = 1, limit = 20 } = req.query;
+    const query = {};
+
+    if (status) query.status = status;
+    if (patient) query.patientId = patient;
+    if (from || to) {
+      query.date = {};
+      if (from) query.date.$gte = new Date(from);
+      if (to) query.date.$lte = new Date(to);
+    }
+
+    const invoices = await Invoice.find(query)
+      .populate("patientId", "firstName lastName phone")
+      .populate("createdBy", "name role email")
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
       .lean({ virtuals: true });
 
-    res.json(invoices);
+    const total = await Invoice.countDocuments(query);
+
+    res.json({
+      invoices,
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ===============================
+// Get invoice by ID
+// ===============================
+export const getInvoiceById = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id)
+      .populate("patientId", "firstName lastName phone")
+      .populate("createdBy", "name role email");
+
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    res.json(invoice.toJSON({ virtuals: true }));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -26,9 +63,17 @@ export const getInvoices = async (req, res) => {
 export const createInvoice = async (req, res) => {
   try {
     const invoice = new Invoice(req.body);
+
+    // Auto-populate patientName if not provided
+    if (!invoice.patientName && invoice.patientId) {
+      const patient = await mongoose.model("Patient").findById(invoice.patientId);
+      if (patient) {
+        invoice.patientName = `${patient.firstName} ${patient.lastName}`;
+      }
+    }
+
     await invoice.save();
 
-    // Populate single document safely (do NOT use lean here)
     await invoice.populate([
       { path: "patientId", select: "firstName lastName phone" },
       { path: "createdBy", select: "name role email" },
@@ -77,19 +122,18 @@ export const deleteInvoice = async (req, res) => {
 };
 
 // ===============================
-// Get invoice by ID
+// Mark invoice as paid
 // ===============================
-export const getInvoiceById = async (req, res) => {
+export const markInvoicePaid = async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.id);
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
-    await invoice.populate([
-      { path: "patientId", select: "firstName lastName phone" },
-      { path: "createdBy", select: "name role email" },
-    ]);
+    invoice.status = "paid";
+    invoice.paidAt = new Date();
+    await invoice.save();
 
-    res.json(invoice.toJSON({ virtuals: true }));
+    res.json({ message: "Invoice marked as paid", invoice });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -101,10 +145,8 @@ export const getInvoiceById = async (req, res) => {
 export const exportInvoicesCSV = async (req, res) => {
   try {
     const invoices = await Invoice.find()
-      .populate([
-        { path: "patientId", select: "firstName lastName phone" },
-        { path: "createdBy", select: "name role email" },
-      ])
+      .populate("patientId", "firstName lastName phone")
+      .populate("createdBy", "name role email")
       .lean({ virtuals: true });
 
     if (!invoices.length)
@@ -142,10 +184,8 @@ export const exportInvoicesCSV = async (req, res) => {
 export const exportInvoicesPDF = async (req, res) => {
   try {
     const invoices = await Invoice.find()
-      .populate([
-        { path: "patientId", select: "firstName lastName phone" },
-        { path: "createdBy", select: "name role email" },
-      ])
+      .populate("patientId", "firstName lastName phone")
+      .populate("createdBy", "name role email")
       .lean({ virtuals: true });
 
     if (!invoices.length)
@@ -162,16 +202,22 @@ export const exportInvoicesPDF = async (req, res) => {
         .text(`Patient: ${inv.patientName} (${inv.patientId?._id || ""})`)
         .text(`Phone: ${inv.patientId?.phone || ""}`)
         .text(`Status: ${inv.status}`)
-        .text(`Discount: ${inv.discount}`)
         .text(`Subtotal: ${inv.subtotal}`)
         .text(`Tax: ${inv.tax}`)
+        .text(`Discount: ${inv.discount}`)
         .text(`Total: ${inv.total}`)
         .text(`Created By: ${inv.createdBy?.name || ""}`)
-        .text(`Date: ${new Date(inv.date).toLocaleDateString()} | Due: ${inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : ""}`)
+        .text(
+          `Date: ${new Date(inv.date).toLocaleDateString()} | Due: ${
+            inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : ""
+          }`
+        )
         .text("Services:");
 
       inv.services.forEach(s => {
-        doc.text(` - ${s.service}: ${s.qty} x ${s.unitPrice} = ${s.qty * s.unitPrice}`);
+        doc.text(
+          ` - ${s.service} (${s.desc || ""}): ${s.qty} x ${s.unitPrice} = ${s.qty * s.unitPrice}`
+        );
       });
 
       if (idx < invoices.length - 1) doc.addPage();
@@ -179,6 +225,39 @@ export const exportInvoicesPDF = async (req, res) => {
     });
 
     doc.end();
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ===============================
+// Summary / Reporting
+// ===============================
+export const getInvoiceSummary = async (req, res) => {
+  try {
+    const summary = await Invoice.aggregate([
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+          total: { $sum: { $subtract: [{ $add: ["$subtotal", "$tax"] }, "$discount"] } },
+        },
+      },
+    ]);
+
+    const revenue = await Invoice.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: { $subtract: [{ $add: ["$subtotal", "$tax"] }, "$discount"] } },
+        },
+      },
+    ]);
+
+    res.json({
+      statusSummary: summary,
+      totalRevenue: revenue[0]?.totalRevenue || 0,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -21,10 +21,22 @@ const appointmentSchema = new mongoose.Schema(
       default: "Scheduled",
     },
     notes: { type: String },
-    billing: {
-      type: Number,
-      default: 0,
+
+    // ===== Extra Fields from Frontend =====
+    type: { type: String, default: "" },              // appointment type
+    reason: { type: String, default: "" },            // reason for visit
+    symptoms: { type: String, default: "" },          // symptoms
+    diagnosis: { type: String, default: "" },         // diagnosis
+    treatment: { type: String, default: "" },         // treatment
+    prescription: { type: String, default: "" },      // prescription
+    billingAmount: { type: Number, default: 0 },      // consultation fee or billing amount
+    billingStatus: {
+      type: String,
+      enum: ["unpaid", "paid", "pending"],
+      default: "unpaid",
     },
+    paymentMethod: { type: String, default: "" },     // payment method
+    insuranceProvider: { type: String, default: "" }, // insurance provider
   },
   { timestamps: true }
 );

@@ -1,32 +1,57 @@
 // ==========================
-// pharmacyRoutes.js
+// pharmacyRoutes.js (Merged: Pharmacy + Dispense)
 // ==========================
-import express from 'express';
+import express from "express";
 import {
+  // Medicines
   getAllMedicines,
   getMedicineById,
-  dispenseMedicine,
-} from '../controllers/pharmacyController.js';
-import { protect, authorize } from '../middleware/authMiddleware.js';
+
+  // Dispensing
+  createDispense,            // replaces dispenseMedicine
+  getAllDispenses,
+  getDispensesByPatient,
+  getDispensesByMedicine,
+  getDispensesByDateRange,
+  getDispenseSummary,
+  getPatientDispenseSummary,
+
+  // Inventory / Activities
+  getPharmacyActivities,
+} from "../controllers/pharmacyController.js";   // merged controller
+import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// ==========================
-// Protect all pharmacy routes
-// ==========================
+// -----------------------------
+// Middleware
+// -----------------------------
 router.use(protect);
 
-// ==========================
-// Pharmacy Endpoints
-// ==========================
+// -----------------------------
+// Medicines
+// -----------------------------
+router.get("/", authorize("admin", "pharmacist", "cashier"), getAllMedicines);
+router.get("/:id", authorize("admin", "pharmacist", "cashier"), getMedicineById);
 
-// GET all medicines (drugs only)
-router.get('/', authorize('admin', 'pharmacist', 'cashier'), getAllMedicines);
+// -----------------------------
+// Dispensing (pharmacist/admin)
+// -----------------------------
+router.post("/dispense", authorize("admin", "pharmacist"), createDispense);
 
-// POST dispense medicine (deduct from inventory + log transaction)
-router.post('/dispense', authorize('admin', 'pharmacist'), dispenseMedicine);
+// Dispense logs
+router.get("/dispenses", authorize("admin", "pharmacist"), getAllDispenses);
+router.get("/dispenses/patient/:patientId", authorize("admin", "pharmacist"), getDispensesByPatient);
+router.get("/dispenses/medicine/:medicineId", authorize("admin", "pharmacist"), getDispensesByMedicine);
+router.get("/dispenses/range", authorize("admin", "pharmacist"), getDispensesByDateRange);
 
-// GET single medicine by ID
-router.get('/:id', authorize('admin', 'pharmacist', 'cashier'), getMedicineById);
+// Reports / Summaries
+router.get("/summary", authorize("admin", "pharmacist"), getDispenseSummary);
+router.get("/summary/patient", authorize("admin", "pharmacist"), getPatientDispenseSummary);
+
+// -----------------------------
+// Inventory activities (optional)
+// -----------------------------
+router.get("/activities", authorize("admin", "pharmacist"), getPharmacyActivities);
 
 export default router;

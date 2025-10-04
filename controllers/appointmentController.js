@@ -1,14 +1,21 @@
 import Appointment from "../models/Appointment.js";
+import Patient from "../models/Patient.js";
 
 // Get all appointments
 export const getAllAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find()
-      .populate("patient", "firstName lastName")
-      .populate("doctor", "name role");
-    res.json(appointments);
+      .populate("patient", "patientId firstName lastName")
+      .populate("doctor", "name role")
+      .sort({ date: 1 }); // upcoming first
+
+    res.status(200).json({ success: true, appointments });
   } catch (err) {
-    res.status(500).json({ message: "Failed to fetch appointments", error: err.message });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch appointments",
+      error: err.message,
+    });
   }
 };
 
@@ -17,18 +24,26 @@ export const getAppointmentsByPatient = async (req, res) => {
   try {
     const { patientId } = req.params;
 
-    const appointments = await Appointment.find({ patient: patientId })
-      .populate("patient", "firstName lastName")
-      .populate("doctor", "name role")
-      .sort({ date: 1 }); // upcoming first
+    const patient = await Patient.findOne({
+      $or: [{ patientId }, { _id: patientId }],
+    });
 
-    if (!appointments.length) {
-      return res.status(404).json({ message: "No appointments found for this patient" });
+    if (!patient) {
+      return res.status(404).json({ success: false, message: "Patient not found" });
     }
+
+    const appointments = await Appointment.find({ patient: patient._id })
+      .populate("patient", "patientId firstName lastName")
+      .populate("doctor", "name role")
+      .sort({ date: 1 });
 
     res.status(200).json({ success: true, appointments });
   } catch (err) {
-    res.status(500).json({ message: "Error fetching appointments", error: err.message });
+    res.status(500).json({
+      success: false,
+      message: "Error fetching appointments",
+      error: err.message,
+    });
   }
 };
 
@@ -36,16 +51,20 @@ export const getAppointmentsByPatient = async (req, res) => {
 export const getAppointmentById = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
-      .populate("patient", "firstName lastName")
+      .populate("patient", "patientId firstName lastName")
       .populate("doctor", "name role");
 
     if (!appointment) {
-      return res.status(404).json({ message: "Appointment not found" });
+      return res.status(404).json({ success: false, message: "Appointment not found" });
     }
 
-    res.json(appointment);
+    res.status(200).json({ success: true, appointment });
   } catch (err) {
-    res.status(500).json({ message: "Error fetching appointment", error: err.message });
+    res.status(500).json({
+      success: false,
+      message: "Error fetching appointment",
+      error: err.message,
+    });
   }
 };
 
@@ -55,25 +74,40 @@ export const createAppointment = async (req, res) => {
     const appointment = new Appointment(req.body);
     const saved = await appointment.save();
     const populated = await saved.populate([
-      { path: "patient", select: "firstName lastName" },
+      { path: "patient", select: "patientId firstName lastName" },
       { path: "doctor", select: "name role" },
     ]);
-    res.status(201).json(populated);
+
+    res.status(201).json({ success: true, appointment: populated });
   } catch (err) {
-    res.status(400).json({ message: "Error creating appointment", error: err.message });
+    res.status(400).json({
+      success: false,
+      message: "Error creating appointment",
+      error: err.message,
+    });
   }
 };
 
 // Update appointment
 export const updateAppointment = async (req, res) => {
   try {
-    const updated = await Appointment.findByIdAndUpdate(req.params.id, req.body, { new: true })
-      .populate("patient", "firstName lastName")
+    const updated = await Appointment.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    })
+      .populate("patient", "patientId firstName lastName")
       .populate("doctor", "name role");
-    if (!updated) return res.status(404).json({ message: "Appointment not found" });
-    res.json(updated);
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Appointment not found" });
+    }
+
+    res.status(200).json({ success: true, appointment: updated });
   } catch (err) {
-    res.status(400).json({ message: "Error updating appointment", error: err.message });
+    res.status(400).json({
+      success: false,
+      message: "Error updating appointment",
+      error: err.message,
+    });
   }
 };
 
@@ -81,9 +115,16 @@ export const updateAppointment = async (req, res) => {
 export const deleteAppointment = async (req, res) => {
   try {
     const deleted = await Appointment.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: "Appointment not found" });
-    res.json({ message: "Appointment deleted" });
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Appointment not found" });
+    }
+
+    res.status(200).json({ success: true, message: "Appointment deleted" });
   } catch (err) {
-    res.status(500).json({ message: "Error deleting appointment", error: err.message });
+    res.status(500).json({
+      success: false,
+      message: "Error deleting appointment",
+      error: err.message,
+    });
   }
 };

@@ -1,4 +1,3 @@
-// routes/inventoryRoutes.js
 import express from "express";
 import {
   getAllInventory,
@@ -7,62 +6,33 @@ import {
   updateInventoryItem,
   deleteInventoryItem,
   restockInventoryItem,
-  getPharmacyInventory,
-  dispenseInventoryItem,
+  consumeInventoryItem,   // ✅ new
   getInventoryReports,
 } from "../controllers/inventoryController.js";
-
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// ==========================
-// Apply protection globally
-// ==========================
-//router.use(protect);
+router.use(protect);
 
-// ==========================
-// Inventory Management
-// ==========================
-
-// GET all inventory items — Admin, Pharmacist, Cashier
+// -----------------------------
+// Public inventory retrieval (role-limited)
+// -----------------------------
 router.get("/", authorize("admin", "pharmacist", "cashier"), getAllInventory);
-
-// POST: add new inventory item — Admin & Pharmacist
-router.post("/", authorize("admin", "pharmacist"), addInventoryItem);
-
-// PUT: restock inventory item — Admin & Pharmacist
-// Must come BEFORE dynamic /:id route
-router.put("/restock/:id", authorize("admin", "pharmacist"), restockInventoryItem);
-
-// ==========================
-// Pharmacy Module Integration
-// ==========================
-
-// GET inventory for pharmacy module — Admin, Pharmacist, Cashier
-router.get("/pharmacy", authorize("admin", "pharmacist", "cashier"), getPharmacyInventory);
-
-// POST: dispense inventory when prescription is filled — Admin & Pharmacist
-router.post("/pharmacy/dispense", authorize("admin", "pharmacist"), dispenseInventoryItem);
-
-// ==========================
-// Inventory Reports
-// ==========================
-
-// GET inventory reports — Admin, Pharmacist, Cashier
-router.get("/reports", authorize("admin", "pharmacist", "cashier"), getInventoryReports);
-
-// ==========================
-// Dynamic Inventory Item Routes
-// ==========================
-
-// PUT: update/edit inventory item by ID — Admin & Pharmacist
-router.put("/:id", authorize("admin", "pharmacist"), updateInventoryItem);
-
-// GET: single inventory item by ID — Admin, Pharmacist, Cashier
+router.get("/reports", authorize("admin", "pharmacist"), getInventoryReports);
 router.get("/:id", authorize("admin", "pharmacist", "cashier"), getInventoryById);
 
-// DELETE: remove inventory item by ID — Admin only
-router.delete("/:id", authorize("admin"), deleteInventoryItem);
+// -----------------------------
+// Admin / inventory management
+// -----------------------------
+router.post("/", authorize("admin", "inventory"), addInventoryItem);
+
+// **Important:** custom routes first
+router.put("/:id/restock", authorize("admin", "inventory"), restockInventoryItem);
+router.put("/:id/consume", authorize("pharmacist"), consumeInventoryItem); // ✅ pharmacist only
+
+// Generic update & delete
+router.put("/:id", authorize("admin", "inventory"), updateInventoryItem);
+router.delete("/:id", authorize("admin", "inventory"), deleteInventoryItem);
 
 export default router;
