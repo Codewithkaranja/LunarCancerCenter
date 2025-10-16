@@ -96,7 +96,8 @@ export const getAllPatients = async (req, res) => {
       status: "status",
       createdAt: "createdAt",
     };
-    const sortField = columnMap[sortColumn] || "createdAt";
+    const sortField = columnMap[sortColumn] || sortColumn || "createdAt";
+
     const sortOptions = { [sortField]: sortDirection === "asc" ? 1 : -1 };
 
     const totalCount = await Patient.countDocuments(query);

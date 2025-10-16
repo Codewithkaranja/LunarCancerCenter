@@ -737,6 +737,25 @@
           flex-direction: column;
         }
       }
+
+      .custom-alert {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #28a745;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 6px;
+  font-weight: 500;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  z-index: 9999;
+}
+.custom-alert.error { background: #dc3545; }
+.custom-alert.visible { opacity: 1; transform: translateY(0); }
+
     </style>
   </head>
   <body>
@@ -815,7 +834,7 @@
               <i class="fas fa-bell"></i>
               <span class="badge">3</span>
             </div>
-            <button class="btn-logout" onclick="logout()"><i class="fas fa-sign-out-alt"></i>Logout</button>
+            <button class="btn-logout"  id="logoutBtn"><i class="fas fa-sign-out-alt"></i>Logout</button>
           </div>
         </header>
 
@@ -832,10 +851,11 @@
               <button class="btn btn-primary" onclick="openModal()">
                 <i class="fas fa-plus"></i> Add New Patient
               </button>
-              <button class="btn btn-success">
+              <!---<button class="btn btn-success">-->
+                <button class="btn btn-success" id="export-csv" class="btn-export">
                 <i class="fas fa-file-export"></i> Export CSV
               </button>
-              <button class="btn btn-warning">
+              <button class="btn btn-warning"  id="export-pdf" class="btn-export">
                 <i class="fas fa-file-pdf"></i> Export PDF
               </button>
             </div>
@@ -895,13 +915,15 @@
             <div class="table-header">
               <h2 class="table-title">Patient Records</h2>
               <div class="table-actions">
-                <select>
-                  <option>Sort by: Patient ID</option>
-                  <option>Sort by: Newest First</option>
-                  <option>Sort by: Oldest First</option>
-                  <option>Sort by: Name A-Z</option>
-                  <option>Sort by: Name Z-A</option>
-                </select>
+               <select id="sort-dropdown">
+  <option disabled selected>Sort by...</option>
+  <option>Sort by: Newest First</option>
+  <option>Sort by: Oldest First</option>
+  <option>Sort by: Name A-Z</option>
+  <option>Sort by: Name Z-A</option>
+  <option>Sort by: Patient ID</option>
+</select>
+
               </div>
             </div>
 
@@ -1091,6 +1113,8 @@
           <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
         <div class="modal-body">
+          <input type="hidden" id="edit-patientId">
+
           <div class="modal-tabs">
             <button class="tab-btn active" onclick="openTab(event, 'personal')">
               Personal Info
@@ -1276,7 +1300,7 @@
 
           <div class="form-actions">
             <button class="btn" onclick="closeModal()">Cancel</button>
-            <button class="btn btn-primary">Save Patient</button>
+            <button class="btn btn-primary" id="savePatientBtn" onclick="savePatient()" class="btn-save">Save Patient</button>
           </div>
         </div>
       </div>

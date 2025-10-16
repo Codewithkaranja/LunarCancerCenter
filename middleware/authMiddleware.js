@@ -1,21 +1,40 @@
 // middleware/authMiddleware.js
+import jwt from 'jsonwebtoken';
+import Staff from '../models/Staff.js';
 
-// Dummy authentication middleware
-export const protect = (req, res, next) => {
-  // In real app, verify JWT or session here
-  // For now, let's just simulate a logged-in user
-  req.user = {
-    id: '12345',
-    name: 'Dr. John Doe',
-    role: 'admin' // change as needed for testing: 'doctor', 'nurse', etc.
-  };
-  next();
+// Protect routes – check for token
+export const protect = async (req, res, next) => {
+  let token;
+
+  // Token sent in Authorization header as: Bearer <token>
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
+      token = req.headers.authorization.split(' ')[1];
+
+      // Verify token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // Attach staff user to request, exclude password
+      req.user = await Staff.findById(decoded.id).select('-password');
+
+      if (!req.user) {
+        return res.status(401).json({ message: 'User not found' });
+      }
+
+      next();
+    } catch (err) {
+      console.error('JWT error:', err.message);
+      return res.status(401).json({ message: 'Not authorized, token failed' });
+    }
+  } else {
+    return res.status(401).json({ message: 'No token, authorization denied' });
+  }
 };
 
-// Role-based authorization
+// Role-based access control
 export const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Forbidden: Access denied' });
     }
     next();

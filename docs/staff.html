@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>Lunar Cancer Care HMIS - Staff</title>
     <link
       rel="stylesheet"
@@ -784,9 +785,9 @@
                 ><i class="fas fa-calendar-check"></i> Appointments</a
               >
             </li>
-           
+
             <li>
-              <a href="pharmacy.html" 
+              <a href="pharmacy.html"
                 ><i class="fas fa-prescription"></i> Pharmacy</a
               >
             </li>
@@ -809,7 +810,7 @@
               <a href="settings.html"><i class="fas fa-cog"></i> Settings</a>
             </li>
             <li>
-              <a href="index.html"
+              <a href="index.html" id="sidebarLogout"
                 ><i class="fas fa-sign-out-alt"></i> Logout</a
               >
             </li>
@@ -836,7 +837,7 @@
               <i class="fas fa-bell"></i>
               <span class="badge">3</span>
             </div>
-           <button class="btn-logout" onclick="logout()">
+            <button class="btn-logout" onclick="logout()">
               <i class="fas fa-sign-out-alt"></i> Logout
             </button>
           </div>
@@ -852,7 +853,7 @@
               <h1 class="page-title">Staff Management</h1>
             </div>
             <div class="page-actions">
-              <button class="btn btn-primary" onclick="openModal()">
+              <button class="btn btn-primary">
                 <i class="fas fa-plus"></i> Add New Staff
               </button>
               <button class="btn btn-success">
@@ -901,346 +902,261 @@
             </div>
           </div>
 
-          <!-- Staff Table -->
-          <div class="staff-table-container">
-            <div class="table-header">
-              <h2 class="table-title">Staff Directory</h2>
-              <div class="table-actions">
-                <select>
-                  <option>Sort by: Newest First</option>
-                  <option>Sort by: Oldest First</option>
-                  <option>Sort by: Name A-Z</option>
-                  <option>Sort by: Name Z-A</option>
-                </select>
-              </div>
+          <table class="staff-table">
+            <thead>
+              <tr>
+                <th>Staff ID</th>
+                <th>Full Name</th>
+                <th>Role</th>
+                <th>Department/Specialty</th>
+                <th>Contact Info</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Staff rows will be dynamically inserted here by JS -->
+            </tbody>
+          </table>
+
+          <!-- Footer -->
+          <footer>
+            <div class="footer-bottom">
+              <p>
+                &copy; 2025 Lunar Cancer Care HMIS. All rights reserved. |
+                Designed for better healthcare management
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #777">
+                Crafted with <span style="color: red">❤</span> by
+                <a
+                  href="https://wa.me/254723562484?text=Hello%20there,%20I%20Need%20a%20SoftWare"
+                  target="_blank"
+                  style="
+                    color: rgb(3, 184, 245);
+                    text-decoration: none;
+                    font-weight: 500;
+                  "
+                >
+                  @Saraha_Devs
+                </a>
+              </p>
             </div>
+          </footer>
 
-            <table class="staff-table">
-              <thead>
-                <tr>
-                  <th>Staff ID</th>
-                  <th>Full Name</th>
-                  <th>Role</th>
-                  <th>Department/Specialty</th>
-                  <th>Contact Info</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>S1001</td>
-                  <td>Dr. Achieng</td>
-                  <td><span class="role-badge role-doctor">Doctor</span></td>
-                  <td>Oncology</td>
-                  <td>achieng@lunarcare.com<br />+254 712 345 678</td>
-                  <td>
-                    <span class="status-badge status-active">Active</span>
-                  </td>
-                  <td class="action-cell">
-                    <td class="action-cell">
-  <button class="action-btn btn-view" onclick="viewStaff('${s._id}')"><i class="fas fa-eye"></i> View</button>
-  <button class="action-btn btn-edit" onclick="editStaff('${s._id}')"><i class="fas fa-edit"></i> Edit</button>
-  <button class="action-btn btn-assign" onclick="assignRole('${s._id}')"><i class="fas fa-user-cog"></i> Role</button>
-  <button class="action-btn btn-delete" onclick="deleteStaff('${s._id}')"><i class="fas fa-trash"></i> Delete</button>
-</td>
-
-                  </td>
-                </tr>
-                <tr>
-                  <td>S1002</td>
-                  <td>Nurse Jane</td>
-                  <td><span class="role-badge role-nurse">Nurse</span></td>
-                  <td>Oncology Nursing</td>
-                  <td>jane@lunarcare.com<br />+254 723 456 789</td>
-                  <td>
-                    <span class="status-badge status-active">Active</span>
-                  </td>
-                  <td class="action-cell">
-                   <td class="action-cell">
-  <button class="action-btn btn-view" onclick="viewStaff('${s._id}')"><i class="fas fa-eye"></i> View</button>
-  <button class="action-btn btn-edit" onclick="editStaff('${s._id}')"><i class="fas fa-edit"></i> Edit</button>
-  <button class="action-btn btn-assign" onclick="assignRole('${s._id}')"><i class="fas fa-user-cog"></i> Role</button>
-  <button class="action-btn btn-delete" onclick="deleteStaff('${s._id}')"><i class="fas fa-trash"></i> Delete</button>
-</td>
-
-                  </td>
-                </tr>
-                <tr>
-                  <td>S1003</td>
-                  <td>Pharmacist John</td>
-                  <td>
-                    <span class="role-badge role-pharmacist">Pharmacist</span>
-                  </td>
-                  <td>Pharmacy</td>
-                  <td>john@lunarcare.com<br />+254 734 567 890</td>
-                  <td>
-                    <span class="status-badge status-active">Active</span>
-                  </td>
-                  <td class="action-cell">
-                   <td class="action-cell">
-  <button class="action-btn btn-view" onclick="viewStaff('${s._id}')"><i class="fas fa-eye"></i> View</button>
-  <button class="action-btn btn-edit" onclick="editStaff('${s._id}')"><i class="fas fa-edit"></i> Edit</button>
-  <button class="action-btn btn-assign" onclick="assignRole('${s._id}')"><i class="fas fa-user-cog"></i> Role</button>
-  <button class="action-btn btn-delete" onclick="deleteStaff('${s._id}')"><i class="fas fa-trash"></i> Delete</button>
-</td>
-
-                  </td>
-                </tr>
-                <tr>
-                  <td>S1004</td>
-                  <td>Cashier Mary</td>
-                  <td><span class="role-badge role-cashier">Cashier</span></td>
-                  <td>Finance</td>
-                  <td>mary@lunarcare.com<br />+254 745 678 901</td>
-                  <td>
-                    <span class="status-badge status-active">Active</span>
-                  </td>
-                  <td class="action-cell">
-                    <td class="action-cell">
-  <button class="action-btn btn-view" onclick="viewStaff('${s._id}')"><i class="fas fa-eye"></i> View</button>
-  <button class="action-btn btn-edit" onclick="editStaff('${s._id}')"><i class="fas fa-edit"></i> Edit</button>
-  <button class="action-btn btn-assign" onclick="assignRole('${s._id}')"><i class="fas fa-user-cog"></i> Role</button>
-  <button class="action-btn btn-delete" onclick="deleteStaff('${s._id}')"><i class="fas fa-trash"></i> Delete</button>
-</td>
-
-                  </td>
-                </tr>
-                <tr>
-                  <td>S1005</td>
-                  <td>Dr. Kamau</td>
-                  <td><span class="role-badge role-doctor">Doctor</span></td>
-                  <td>Radiotherapy</td>
-                  <td>kamau@lunarcare.com<br />+254 756 789 012</td>
-                  <td>
-                    <span class="status-badge status-active">Active</span>
-                  </td>
-                  <td class="action-cell">
-                   <td class="action-cell">
-  <button class="action-btn btn-view" onclick="viewStaff('${s._id}')"><i class="fas fa-eye"></i> View</button>
-  <button class="action-btn btn-edit" onclick="editStaff('${s._id}')"><i class="fas fa-edit"></i> Edit</button>
-  <button class="action-btn btn-assign" onclick="assignRole('${s._id}')"><i class="fas fa-user-cog"></i> Role</button>
-  <button class="action-btn btn-delete" onclick="deleteStaff('${s._id}')"><i class="fas fa-trash"></i> Delete</button>
-</td>
-
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="pagination">
-              <div class="pagination-info">Showing 1-5 of 24 staff members</div>
-              <div class="pagination-controls">
-                <button class="pagination-btn">&laquo; Previous</button>
-                <button class="pagination-btn active">1</button>
-                <button class="pagination-btn">2</button>
-                <button class="pagination-btn">3</button>
-                <button class="pagination-btn">4</button>
-                <button class="pagination-btn">5</button>
-                <button class="pagination-btn">Next &raquo;</button>
+          <!-- Add/Edit Staff Modal -->
+          <div class="modal" id="staffModal">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h2 class="modal-title">Add New Staff Member</h2>
+                <button class="modal-close">&times;</button>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Footer -->
-    <footer>
-      <div class="footer-bottom">
-        <p>
-          &copy; 2025 Lunar Cancer Care HMIS. All rights reserved. | Designed
-          for better healthcare management
-        </p>
-        <p style="margin: 0; font-size: 13px; color: #777">
-          Crafted with <span style="color: red">❤</span> by
-          <a
-            href="https://wa.me/254723562484?text=Hello%20there,%20I%20Need%20a%20SoftWare"
-            target="_blank"
-            style="
-              color: rgb(3, 184, 245);
-              text-decoration: none;
-              font-weight: 500;
-            "
-          >
-            @Saraha_Devs
-          </a>
-        </p>
-      </div>
-    </footer>
+              <div class="modal-body">
+                <!-- Tabs -->
+                <div class="modal-tabs">
+                  <button class="tab-btn active" data-target="personal-info">
+                    Personal Info
+                  </button>
+                  <button class="tab-btn" data-target="professional-info">
+                    Professional Info
+                  </button>
+                  <button class="tab-btn" data-target="employment-info">
+                    Employment Info
+                  </button>
+                </div>
 
-    <!-- Add/Edit Staff Modal -->
-    <div class="modal" id="staffModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 class="modal-title">Add New Staff Member</h2>
-          <button class="modal-close" onclick="closeModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="modal-tabs">
-            <button class="tab-btn active" onclick="openTab(event, 'personal')">
-              Personal Info
-            </button>
-            <button class="tab-btn" onclick="openTab(event, 'professional')">
-              Professional Info
-            </button>
-            <button class="tab-btn" onclick="openTab(event, 'employment')">
-              Employment Info
-            </button>
-          </div>
+                <!-- Tab Contents -->
+                <div id="personal-info" class="tab-content active">
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label for="first-name">First Name</label>
+                      <input
+                        type="text"
+                        id="first-name"
+                        placeholder="Enter first name"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="last-name">Last Name</label>
+                      <input
+                        type="text"
+                        id="last-name"
+                        placeholder="Enter last name"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="dob">Date of Birth</label>
+                      <input type="date" id="dob" />
+                    </div>
+                    <div class="form-group">
+                      <label for="gender">Gender</label>
+                      <select id="gender">
+                        <option value="">Select Gender</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="phone">Phone Number</label>
+                      <input
+                        type="tel"
+                        id="phone"
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="email">Email Address</label>
+                      <input
+                        type="email"
+                        id="email"
+                        placeholder="Enter email address"
+                      />
+                    </div>
+                    <div class="form-group form-full">
+                      <label for="address">Address</label>
+                      <input
+                        type="text"
+                        id="address"
+                        placeholder="Enter full address"
+                      />
+                    </div>
+                  </div>
+                </div>
 
-          <div id="personal" class="tab-content active">
-            <div class="form-grid">
-              <div class="form-group">
-                <label for="first-name">First Name</label>
-                <input
-                  type="text"
-                  id="first-name"
-                  placeholder="Enter first name"
-                />
-              </div>
-              <div class="form-group">
-                <label for="last-name">Last Name</label>
-                <input
-                  type="text"
-                  id="last-name"
-                  placeholder="Enter last name"
-                />
-              </div>
-              <div class="form-group">
-                <label for="dob">Date of Birth</label>
-                <input type="date" id="dob" />
-              </div>
-              <div class="form-group">
-                <label for="gender">Gender</label>
-                <select id="gender">
-                  <option value="">Select Gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="phone">Phone Number</label>
-                <input type="tel" id="phone" placeholder="Enter phone number" />
-              </div>
-              <div class="form-group">
-                <label for="email">Email Address</label>
-                <input
-                  type="email"
-                  id="email"
-                  placeholder="Enter email address"
-                />
-              </div>
-              <div class="form-group form-full">
-                <label for="address">Address</label>
-                <input
-                  type="text"
-                  id="address"
-                  placeholder="Enter full address"
-                />
+                <div id="professional-info" class="tab-content">
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label for="role">System Role</label>
+                      <select id="role">
+                        <option value="">Select Role</option>
+                        <option value="admin">Admin</option>
+                        <option value="doctor">Doctor</option>
+                        <option value="nurse">Nurse</option>
+                        <option value="pharmacist">Pharmacist</option>
+                        <option value="cashier">Cashier</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="department">Department</label>
+                      <select id="department">
+                        <option value="">Select Department</option>
+                        <option value="oncology">Oncology</option>
+                        <option value="radiotherapy">Radiotherapy</option>
+                        <option value="pharmacy">Pharmacy</option>
+                        <option value="nursing">Nursing</option>
+                        <option value="finance">Finance</option>
+                        <option value="administration">Administration</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="specialty">Specialty</label>
+                      <input
+                        type="text"
+                        id="specialty"
+                        placeholder="Enter specialty"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="qualifications">Qualifications</label>
+                      <input
+                        type="text"
+                        id="qualifications"
+                        placeholder="Enter qualifications"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="username">Username</label>
+                      <input
+                        type="text"
+                        id="username"
+                        placeholder="Enter username for system access"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="password">Password</label>
+                      <input
+                        type="password"
+                        id="password"
+                        placeholder="Enter initial password"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div id="employment-info" class="tab-content">
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label for="hire-date">Hire Date</label>
+                      <input type="date" id="hire-date" />
+                    </div>
+                    <div class="form-group">
+                      <label for="employment-type">Employment Type</label>
+                      <select id="employment-type">
+                        <option value="">Select Type</option>
+                        <option value="fulltime">Full-Time</option>
+                        <option value="parttime">Part-Time</option>
+                        <option value="contract">Contract</option>
+                        <option value="temporary">Temporary</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="salary">Salary</label>
+                      <input
+                        type="number"
+                        id="salary"
+                        placeholder="Enter salary"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="status">Employment Status</label>
+                      <select id="status">
+                        <option value="">Select Status</option>
+                        <option value="active">Active</option>
+                        <option value="onleave">On Leave</option>
+                        <option value="suspended">Suspended</option>
+                        <option value="terminated">Terminated</option>
+                      </select>
+                    </div>
+                    <div class="form-group form-full">
+                      <label for="notes">Additional Notes</label>
+                      <textarea
+                        id="notes"
+                        rows="3"
+                        placeholder="Enter any additional employment notes"
+                      ></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Modal actions -->
+                <div class="form-actions">
+                  <button class="btn modal-cancel">Cancel</button>
+                  <button class="btn btn-primary modal-save">
+                    Save Staff Member
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <div id="professional" class="tab-content">
-            <div class="form-grid">
-              <div class="form-group">
-                <label for="role">System Role</label>
-                <select id="role">
-                  <option value="">Select Role</option>
-                  <option value="admin">Admin</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="pharmacist">Pharmacist</option>
-                  <option value="cashier">Cashier</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="department">Department</label>
-                <select id="department">
-                  <option value="">Select Department</option>
-                  <option value="oncology">Oncology</option>
-                  <option value="radiotherapy">Radiotherapy</option>
-                  <option value="pharmacy">Pharmacy</option>
-                  <option value="nursing">Nursing</option>
-                  <option value="finance">Finance</option>
-                  <option value="administration">Administration</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="specialty">Specialty</label>
-                <input
-                  type="text"
-                  id="specialty"
-                  placeholder="Enter specialty"
-                />
-              </div>
-              <div class="form-group">
-                <label for="qualifications">Qualifications</label>
-                <input
-                  type="text"
-                  id="qualifications"
-                  placeholder="Enter qualifications"
-                />
-              </div>
-              <div class="form-group">
-                <label for="username">Username</label>
-                <input
-                  type="text"
-                  id="username"
-                  placeholder="Enter username for system access"
-                />
-              </div>
-              <div class="form-group">
-                <label for="password">Password</label>
-                <input
-                  type="password"
-                  id="password"
-                  placeholder="Enter initial password"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div id="employment" class="tab-content">
-            <div class="form-grid">
-              <div class="form-group">
-                <label for="hire-date">Hire Date</label>
-                <input type="date" id="hire-date" />
-              </div>
-              <div class="form-group">
-                <label for="employment-type">Employment Type</label>
-                <select id="employment-type">
-                  <option value="">Select Type</option>
-                  <option value="fulltime">Full-Time</option>
-                  <option value="parttime">Part-Time</option>
-                  <option value="contract">Contract</option>
-                  <option value="temporary">Temporary</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="salary">Salary</label>
-                <input type="number" id="salary" placeholder="Enter salary" />
-              </div>
-              <div class="form-group">
-                <label for="status">Employment Status</label>
-                <select id="status">
-                  <option value="">Select Status</option>
-                  <option value="active">Active</option>
-                  <option value="onleave">On Leave</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="terminated">Terminated</option>
-                </select>
-              </div>
-              <div class="form-group form-full">
-                <label for="notes">Additional Notes</label>
-                <textarea
-                  id="notes"
-                  rows="3"
-                  placeholder="Enter any additional employment notes"
-                ></textarea>
-              </div>
+          <!-- View Staff Modal (outside) -->
+          <div id="staffViewModal" class="modal">
+            <div class="modal-content">
+              <span class="modal-close">&times;</span>
+              <h2 class="view-name"></h2>
+              <p>Role: <span class="view-role"></span></p>
+              <p>Department: <span class="view-department"></span></p>
+              <p>Contact: <span class="view-contact"></span></p>
+              <p>Status: <span class="view-status"></span></p>
+              <p>Appointments: <span class="view-appointments"></span></p>
+              <p>Prescriptions: <span class="view-prescriptions"></span></p>
+              <p>Lab Reports: <span class="view-lab-reports"></span></p>
+              <p>Dispenses: <span class="view-dispenses"></span></p>
+              <p>Inventory Changes: <span class="view-inventory"></span></p>
+              <p>Patients: <span class="view-patients"></span></p>
+              <p>Reports: <span class="view-reports"></span></p>
+              <p>Invoice: <span class="view-invoice"></span></p>
             </div>
           </div>
 
@@ -1252,6 +1168,18 @@
       </div>
     </div>
 
-    <script src="SCRIPTS/staff.js"></script>
+    <script type="module" src="SCRIPTS/staff.js">
+          import { protectPage, logout } from './SCRIPTS/auth.js';
+
+      // Protect the staff page on load
+      document.addEventListener('DOMContentLoaded', () => {
+        protectPage();
+      });
+
+      // Assign logout to your button
+      document.querySelectorAll('.btn-logout').forEach(btn => {
+        btn.addEventListener('click', logout);
+      });
+    </script>
   </body>
 </html>

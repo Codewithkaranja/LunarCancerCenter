@@ -1,3 +1,6 @@
+// ================================
+// appointmentRoutes.js
+// ================================
 import express from "express";
 import {
   getAllAppointments,
@@ -5,43 +8,58 @@ import {
   getAppointmentsByPatient,
   createAppointment,
   updateAppointment,
-  deleteAppointment
+  deleteAppointment,
 } from "../controllers/appointmentController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Apply authentication middleware to all routes
-//router.use(protect);
+// ===================================
+// 🔐 1. Global Authentication Middleware
+// Ensures all appointment routes require a valid JWT
+// ===================================
+router.use(protect);
 
-// GET all appointments
-router.get("/", getAllAppointments);
+// ===================================
+// 🩺 2. Appointment Routes
+// ===================================
 
-// GET all appointments for a specific patient — placed BEFORE /:id to avoid conflicts
+// GET all appointments (visible to clinical & admin roles)
+router.get(
+  "/",
+  authorize("admin", "receptionist", "nurse", "doctor"),
+  getAllAppointments
+);
+
+// GET appointments for a specific patient
 router.get(
   "/patient/:patientId",
   authorize("admin", "receptionist", "nurse", "doctor"),
   getAppointmentsByPatient
 );
 
-// GET single appointment by ID
-router.get("/:id", getAppointmentById);
+// GET a single appointment by ID
+router.get(
+  "/:id",
+  authorize("admin", "receptionist", "nurse", "doctor"),
+  getAppointmentById
+);
 
-// CREATE new appointment
+// CREATE a new appointment
 router.post(
   "/",
   authorize("admin", "receptionist", "nurse", "doctor"),
   createAppointment
 );
 
-// UPDATE appointment by ID
+// UPDATE an existing appointment
 router.put(
   "/:id",
   authorize("admin", "receptionist", "nurse", "doctor"),
   updateAppointment
 );
 
-// DELETE appointment by ID
+// DELETE appointment (🔒 admin only)
 router.delete("/:id", authorize("admin"), deleteAppointment);
 
 export default router;

@@ -1120,7 +1120,7 @@
               <h1 class="page-title">Appointments Management</h1>
             </div>
             <div class="page-actions">
-              <button class="btn btn-primary" onclick="openModal()">
+              <button class="btn btn-primary" id="btnOpenModal">
                 <i class="fas fa-plus"></i> Create Appointment
               </button>
               <button class="btn btn-success">
@@ -1571,23 +1571,16 @@
                 <label for="patient">Patient</label>
                 <select id="patient">
                   <option value="">Select Patient</option>
-                  <option value="patient1">John Doe (P12345)</option>
-                  <option value="patient2">Mary Smith (P12346)</option>
-                  <option value="patient3">Robert Johnson (P12347)</option>
-                  <option value="patient4">Susan Wangari (P12348)</option>
-                  <option value="patient5">James Ochieng (P12349)</option>
                 </select>
               </div>
+
               <div class="form-group">
                 <label for="doctor">Doctor/Nurse</label>
                 <select id="doctor">
                   <option value="">Select Doctor/Nurse</option>
-                  <option value="doctor1">Dr. Achieng</option>
-                  <option value="doctor2">Dr. Kamau</option>
-                  <option value="doctor3">Dr. Nyong'o</option>
-                  <option value="nurse1">Nurse Jane</option>
                 </select>
               </div>
+
               <div class="form-group">
                 <label for="appointment-date">Date</label>
                 <input type="date" id="appointment-date" />
@@ -1714,6 +1707,6 @@
       </div>
     </div>
 
-    <script src="SCRIPTS/appointments.js"></script>
+    <script type="module" src="SCRIPTS/appointments.js"></script>
   </body>
 </html>

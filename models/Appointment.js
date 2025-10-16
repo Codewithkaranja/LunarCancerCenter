@@ -4,41 +4,37 @@ const appointmentSchema = new mongoose.Schema(
   {
     patient: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Patient", // Link to Patient collection
+      ref: "Patient",
       required: true,
     },
     doctor: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Staff", // Link to Staff/Doctor collection
+      ref: "Staff",
+      required: false, // optional in case of unassigned appointments
+    },
+    date: {
+      type: Date,
       required: true,
     },
-    department: { type: String },
-    date: { type: Date, required: true },
-    time: { type: String, required: true },
+    time: {
+      type: String,
+      required: true,
+    },
+    reason: {
+      type: String,
+      default: "",
+    },
     status: {
       type: String,
-      enum: ["Scheduled", "Completed", "Canceled"],
-      default: "Scheduled",
+      enum: ["pending", "confirmed", "completed", "cancelled"],
+      default: "pending",
     },
-    notes: { type: String },
-
-    // ===== Extra Fields from Frontend =====
-    type: { type: String, default: "" },              // appointment type
-    reason: { type: String, default: "" },            // reason for visit
-    symptoms: { type: String, default: "" },          // symptoms
-    diagnosis: { type: String, default: "" },         // diagnosis
-    treatment: { type: String, default: "" },         // treatment
-    prescription: { type: String, default: "" },      // prescription
-    billingAmount: { type: Number, default: 0 },      // consultation fee or billing amount
-    billingStatus: {
+    notes: {
       type: String,
-      enum: ["unpaid", "paid", "pending"],
-      default: "unpaid",
+      default: "",
     },
-    paymentMethod: { type: String, default: "" },     // payment method
-    insuranceProvider: { type: String, default: "" }, // insurance provider
   },
   { timestamps: true }
 );
 
-export default mongoose.model("Appointment", appointmentSchema);
+export default mongoose.models.Appointment || mongoose.model("Appointment", appointmentSchema);

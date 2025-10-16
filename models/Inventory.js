@@ -12,7 +12,7 @@ const inventorySchema = new mongoose.Schema(
     unit: { type: String, required: true }, // e.g., tablets, ml, pcs
 
     // Dates
-    expiryDate: { type: Date },          // matches controller
+    expiryDate: { type: Date },
     manufactureDate: { type: Date },
 
     // Supplier Info
@@ -27,15 +27,15 @@ const inventorySchema = new mongoose.Schema(
 
     // Pricing
     costPrice: { type: Number, default: 0 },
-    unitPrice: { type: Number, default: 0 }, // matches controller
+    unitPrice: { type: Number, default: 0 },
 
     // Stock Management
-    minStockLevel: { type: Number, default: 10 }, // matches controller
+    minStockLevel: { type: Number, default: 10 },
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// Virtual status (matches controller logic)
+// ===== Virtual stock status =====
 inventorySchema.virtual("status").get(function () {
   const today = new Date();
   if (!this.quantity || this.quantity <= 0) return "out-of-stock";
@@ -44,4 +44,5 @@ inventorySchema.virtual("status").get(function () {
   return "adequate";
 });
 
-export default mongoose.model("Inventory", inventorySchema);
+// ✅ Safe export — prevents OverwriteModelError
+export default mongoose.models.Inventory || mongoose.model("Inventory", inventorySchema);
