@@ -56,6 +56,69 @@ export const getInvoiceById = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+// ✅ Enhanced getInvoicesWithPatientName (ensures patient name always present)
+export const getInvoicesWithPatientName = async (req, res) => {
+  try {
+    const { status, patient, from, to, page = 1, limit = 20 } = req.query;
+    const query = {};
+
+    if (status) query.status = status;
+    if (patient) query.patientId = patient;
+    if (from || to) {
+      query.date = {};
+      if (from) query.date.$gte = new Date(from);
+      if (to) query.date.$lte = new Date(to);
+    }
+
+    const invoices = await Invoice.find(query)
+      .populate("patientId", "firstName lastName phone")
+      .populate("createdBy", "name role email")
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean({ virtuals: true });
+
+    // 👇 Guarantee readable patientName for frontend search
+    const enrichedInvoices = invoices.map(inv => ({
+      ...inv,
+      patientName:
+        inv.patientName ||
+        `${inv.patientId?.firstName || ""} ${inv.patientId?.lastName || ""}`.trim(),
+    }));
+
+    const total = await Invoice.countDocuments(query);
+
+    res.json({
+      invoices: enrichedInvoices,
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    console.error("❌ Error fetching invoices:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ✅ Updated getInvoiceByIdWithPatientName
+export const getInvoiceByIdWithPatientName = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id)
+      .populate("patientId", "firstName lastName phone")
+      .populate("createdBy", "name role email");
+
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    const invoiceData = invoice.toJSON({ virtuals: true });
+    invoiceData.patientName =
+      invoiceData.patientName ||
+      `${invoiceData.patientId?.firstName || ""} ${invoiceData.patientId?.lastName || ""}`.trim();
+
+    res.json(invoiceData);
+  } catch (err) {
+    console.error("❌ Error fetching invoice by ID:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
 
 // ===============================
 // Create a new invoice
@@ -124,21 +187,38 @@ export const deleteInvoice = async (req, res) => {
 // ===============================
 // Mark invoice as paid
 // ===============================
-export const markInvoicePaid = async (req, res) => {
+// ✅ Improved markInvoicePaid — now handles both “paid” & “unpaid”
+export const markInvoicePaidFlexible = async (req, res) => {
   try {
+    const { status } = req.body; // expected: "paid" or "unpaid"
     const invoice = await Invoice.findById(req.params.id);
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
-    invoice.status = "paid";
-    invoice.paidAt = new Date();
+    // Handle both directions
+    if (status && ["paid", "unpaid"].includes(status)) {
+      invoice.status = status;
+      invoice.paidAt = status === "paid" ? new Date() : null;
+    } else {
+      invoice.status = "paid";
+      invoice.paidAt = new Date();
+    }
+
     await invoice.save();
 
-    res.json({ message: "Invoice marked as paid", invoice });
+    await invoice.populate([
+      { path: "patientId", select: "firstName lastName phone" },
+      { path: "createdBy", select: "name role email" },
+    ]);
+
+    res.json({
+      message: `Invoice marked as ${invoice.status}`,
+      invoice: invoice.toJSON({ virtuals: true }),
+    });
   } catch (err) {
+    console.error("❌ Error marking invoice:", err);
     res.status(500).json({ message: err.message });
   }
 };
-
 // ===============================
 // Export invoices as CSV
 // ===============================

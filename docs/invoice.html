@@ -718,6 +718,14 @@
           flex-direction: column;
         }
       }
+      #patientNameDisplay {
+        font-weight: 600;
+        color: #333;
+      }
+      #patientInfoDisplay {
+        font-size: 0.9rem;
+        color: #666;
+      }
     </style>
   </head>
   <body>
@@ -796,7 +804,8 @@
               <i class="fas fa-bell"></i>
               <span class="badge">5</span>
             </div>
-            <button class="btn-logout">
+
+            <button class="btn-logout" id="logoutBtn">
               <i class="fas fa-sign-out-alt"></i> Logout
             </button>
           </div>
@@ -849,10 +858,8 @@
           <div class="patient-details">
             <div class="patient-header">
               <div class="patient-info">
-                <h3>John Doe (ID: P12345)</h3>
-                <p>
-                  Age: 42 | Phone: +254 712 345 678 | Last Visit: 15 Nov 2025
-                </p>
+                <h3 id="patientNameDisplay">— No patient selected —</h3>
+                <p id="patientInfoDisplay">Age: — | Phone: — | Last Visit: —</p>
               </div>
               <div class="payment-status status-unpaid">Unpaid</div>
             </div>
@@ -1018,15 +1025,18 @@
                 </div>
               </div>
 
-              <div class="invoice-patient">
-                <div>
-                  <h4>Bill To:</h4>
-                  <p>John Doe</p>
-                  <p>P.O. Box 12345, Nairobi</p>
-                  <p>Phone: +254 712 345 678</p>
-                  <p>Email: johndoe@example.com</p>
-                </div>
-                <div>
+            <div class="invoice-patient">
+  <div id="billToSection">
+    <!-- Patient info will be dynamically inserted here -->
+    <h4>Bill To:</h4>
+    <p class="bill-name">—</p>
+    <p class="bill-address">—</p>
+    <p class="bill-phone">Phone: —</p>
+    <p class="bill-email">Email: —</p>
+  </div>
+</div>
+
+
                   <h4>Provider:</h4>
                   <p>Lunar Cancer Care Hospital</p>
                   <p>P.O. Box 56789, Nairobi</p>

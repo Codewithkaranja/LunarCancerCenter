@@ -5,6 +5,34 @@
 const API_URL = "https://lunar-hmis-backend.onrender.com/api/billing";
 let invoices = [];
 let currentInvoice = null;
+async function findPatientByCode(patientCode) {
+  try {
+    if (!patientCode) throw new Error("No patient code provided");
+
+    // Clean patient code (remove quotes, extra spaces)
+    const cleanCode = patientCode.replace(/["']/g, "").trim();
+
+
+    const res = await fetch(`https://lunar-hmis-backend.onrender.com/api/patients/${cleanCode}`, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
+      }
+    });
+
+    if (!res.ok) {
+      console.error(`Backend returned ${res.status} for patientCode "${cleanCode}"`);
+      throw new Error("Patient not found");
+    }
+
+    const patient = await res.json();
+    if (!patient || !patient._id) throw new Error("Invalid patient data received");
+    return patient;
+  } catch (err) {
+    console.error("❌ findPatientByCode error:", err);
+    return null;
+  }
+}
 
 document.addEventListener("DOMContentLoaded", async function () {
   const userRole = localStorage.getItem("userRole") || "cashier";
@@ -17,15 +45,20 @@ document.addEventListener("DOMContentLoaded", async function () {
   await fetchInvoices();
 
   document.querySelectorAll(".action-card").forEach(card => {
-    card.addEventListener("click", async () => {
-      const action = card.querySelector("h3").textContent.toLowerCase();
-      switch (action) {
-        case "mark as paid":
-        case "mark as unpaid":
-          currentInvoice.status = action.includes("paid") ? "paid" : "unpaid";
-          currentInvoice = await updateInvoice(currentInvoice._id, { status: currentInvoice.status });
+  card.addEventListener("click", async () => {
+    const action = card.querySelector("h3").textContent.toLowerCase();
+    if (!currentInvoice) return alert("No invoice selected");
+
+    switch (action) {
+      case "mark as paid":
+      case "mark as unpaid":
+        const status = action.includes("paid") ? "paid" : "unpaid";
+        const updatedInvoice = await updateInvoice(currentInvoice._id, { status });
+        if (updatedInvoice) {
+          currentInvoice = updatedInvoice;
           renderInvoice();
-          break;
+        }
+        break;
         case "add service":
           openServiceModal();
           break;
@@ -44,7 +77,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   document.querySelector(".btn-success")?.addEventListener("click", exportCSV);
   document.querySelector(".btn-warning")?.addEventListener("click", exportPDF);
-  document.querySelectorAll(".invoice-actions .btn").forEach(btn => btn.addEventListener("click", exportPDF));
+  //document.querySelectorAll(".invoice-actions .btn").forEach(btn => btn.addEventListener("click", exportPDF));
 
   // =========================== Search
   document.querySelector(".search-btn")?.addEventListener("click", () => {
@@ -67,72 +100,159 @@ document.addEventListener("DOMContentLoaded", async function () {
   });
 
   // =========================== New Invoice
-  document.querySelector(".btn-primary")?.addEventListener("click", async () => {
-    const patientName = prompt("Enter Patient Name:");
-    const patientIdInput = prompt("Enter Patient ID:");
-    if (!patientName || !patientIdInput) return alert("Patient info required!");
+// =========================== New Invoice (Safeguarded) ===========================
 
-    const newInvoice = {
-      patientName,
-      patientId: patientIdInput,
-      date: new Date(),
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      status: "unpaid",
-      discount: 0,
-      services: []
-    };
+const newBtn = document.querySelector(".btn-primary");
 
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newInvoice)
-    });
-    const saved = await res.json();
+if (newBtn) {
+  newBtn.addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    try {
+      const patientCode = prompt("Enter Patient ID (e.g., PAT0001):");
+      if (!patientCode) return alert("Patient ID is required!");
 
-    // Fetch full invoice with populated patientId
-    const fullInvoiceRes = await fetch(`${API_URL}/${saved._id}`);
-    const fullInvoice = await fullInvoiceRes.json();
+      const patient = await findPatientByCode(patientCode);
 
-    invoices.push(fullInvoice);
-    currentInvoice = fullInvoice;
-    renderInvoice();
-    alert("New invoice created for " + patientName);
+      if (!patient) return alert("Patient not found!");
+
+      const confirmed = confirm(`Create invoice for ${patient.firstName} ${patient.lastName}?`);
+      if (!confirmed) return;
+
+      const newInvoice = {
+        patientId: patient._id,
+        patientName: `${patient.firstName} ${patient.lastName}`,
+        date: new Date().toISOString(),
+        dueDate: new Date(Date.now() + 7*24*60*60*1000).toISOString(),
+        status: "unpaid",
+        discount: 0,
+        services: [],
+      };
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
+        },
+        body: JSON.stringify(newInvoice),
+      });
+
+      if (!res.ok) throw new Error(`Failed to create invoice: ${res.status}`);
+
+      const saved = await res.json();
+
+      const fullInvoiceRes = await fetch(`${API_URL}/${saved._id}`);
+      const fullInvoice = await fullInvoiceRes.json();
+
+      invoices.push(fullInvoice);
+      currentInvoice = fullInvoice;
+      renderInvoice();
+
+      alert(`✅ New invoice created for ${patient.firstName} ${patient.lastName}`);
+    } catch (err) {
+      console.error("❌ Error creating invoice:", err);
+      alert("Failed to create invoice. Check console for details.");
+    } finally {
+      e.target.disabled = false;
+    }
   });
-});
+}
+
+
+
 
 // =========================== Backend Functions
 async function fetchInvoices() {
   try {
-    const res = await fetch(API_URL);
-    invoices = await res.json();
-    currentInvoice = invoices[0] || null;
-    if (currentInvoice) renderInvoice();
+    const res = await fetch(API_URL, {
+      headers: {
+        "Authorization": `Bearer ${localStorage.getItem("token") || ""}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    // ✅ Early error detection
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+
+    // ✅ Handle either { invoices: [...] } or raw array
+    invoices = Array.isArray(data) ? data : data.invoices || [];
+
+    // ✅ Decide what to render
+    if (invoices.length > 0) {
+      currentInvoice = invoices[0];
+      renderInvoice();
+    } else {
+      currentInvoice = null;
+      const container = document.getElementById("invoiceDetails");
+      if (container) {
+        container.innerHTML = "<p>No invoices found. Please create one.</p>";
+      }
+    }
+
   } catch (err) {
-    console.error("Error fetching invoices:", err);
+    console.error("❌ Error fetching invoices:", err);
+    const container = document.getElementById("invoiceDetails");
+    if (container) {
+      container.innerHTML = "<p style='color:red;'>⚠️ Failed to fetch invoices. Check backend connection.</p>";
+    }
   }
 }
 
+
+
+
 async function updateInvoice(id, updates) {
+  if (!id) {
+    console.error("❌ No invoice ID provided to updateInvoice");
+    alert("No invoice selected.");
+    return null;
+  }
+
+  // ✅ Ensure all services have 'source' if services exist
+  if (updates.services && Array.isArray(updates.services)) {
+    updates.services = updates.services.map(s => ({
+      ...s,
+      source: s.source || "manual",
+    }));
+  }
+
   try {
     const res = await fetch(`${API_URL}/${id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates)
+      headers: {
+        "Content-Type": "application/json",
+        ...(localStorage.getItem("token") && {
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        }),
+      },
+      body: JSON.stringify(updates),
     });
-    const updated = await res.json();
 
-    // Fetch fully populated invoice after update
-    const fullInvoiceRes = await fetch(`${API_URL}/${updated._id}`);
-    const fullInvoice = await fullInvoiceRes.json();
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Failed to update invoice: ${res.status} - ${errorText}`);
+    }
 
-    const idx = invoices.findIndex(inv => inv._id === id);
-    if (idx >= 0) invoices[idx] = fullInvoice;
-
-    return fullInvoice;
+    const updatedInvoice = await res.json();
+    const index = invoices.findIndex(inv => inv._id === id);
+    if (index !== -1) invoices[index] = updatedInvoice;
+    currentInvoice = updatedInvoice;
+    renderInvoice();
+    console.log("✅ Invoice updated successfully:", updatedInvoice);
+    return updatedInvoice;
   } catch (err) {
     console.error("Error updating invoice:", err);
+    alert("⚠️ Unable to update invoice. See console for details.");
+    return null;
   }
 }
+
+
+
 
 async function deleteInvoice(id) {
   try {
@@ -147,76 +267,148 @@ async function deleteInvoice(id) {
 
 // =========================== Render Invoice
 function renderInvoice() {
-  if (!currentInvoice) return;
-
-  // Main billing table
   const tbody = document.querySelector(".billing-table tbody");
-  if (tbody) {
-    tbody.innerHTML = "";
-    currentInvoice.services.forEach((service, index) => {
-      const total = service.qty * service.unitPrice;
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${new Date(service.date).toLocaleDateString()}</td>
-        <td>${service.service}</td>
-        <td>${service.desc}</td>
-        <td>${service.qty}</td>
-        <td>${service.unitPrice.toLocaleString()}</td>
-        <td>${total.toLocaleString()}</td>
-        <td class="action-cell">
-          <button class="action-btn btn-edit"><i class="fas fa-edit"></i></button>
-          <button class="action-btn btn-delete"><i class="fas fa-trash"></i></button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
-
-  // Invoice preview table
   const tbodyInvoice = document.querySelector(".invoice-billing-table tbody");
-  if (tbodyInvoice) {
-    tbodyInvoice.innerHTML = currentInvoice.services.map(s => `
-      <tr>
-        <td>${new Date(s.date).toLocaleDateString()}</td>
-        <td>${s.service}</td>
-        <td>${s.desc}</td>
-        <td>${s.qty}</td>
-        <td>${s.unitPrice.toLocaleString()}</td>
-        <td>${(s.qty * s.unitPrice).toLocaleString()}</td>
-      </tr>
-    `).join("");
-  }
-
-  const totals = calculateTotals(currentInvoice);
+  const invoiceTotalEl = document.querySelector(".invoice-total");
+  const statusEl = document.querySelector(".payment-status");
   const summaryCards = document.querySelectorAll(".billing-summary .summary-card p");
-  if (summaryCards.length >= 4) {
-    summaryCards[0].textContent = totals.subtotal.toLocaleString() + " KES";
-    summaryCards[1].textContent = totals.tax.toLocaleString() + " KES";
-    summaryCards[3].textContent = totals.total.toLocaleString() + " KES";
+  const patientNameEl = document.getElementById("patientNameDisplay");
+  const patientInfoEl = document.getElementById("patientInfoDisplay");
+  const billToEl = document.getElementById("billToSection");
+
+  const clearTable = (tableEl, colSpan, message) => {
+    if (tableEl) tableEl.innerHTML = `<tr><td colspan='${colSpan}' class='text-center'>${message}</td></tr>`;
+  };
+
+  const formatKES = (amount) => Number(amount || 0).toLocaleString() + " KES";
+
+
+  // ===== No invoice fallback =====
+  if (!currentInvoice) {
+    clearTable(tbody, 7, "No invoice selected");
+    clearTable(tbodyInvoice, 6, "No invoice selected");
+    if (invoiceTotalEl) invoiceTotalEl.innerHTML = "<p>No invoice data</p>";
+    if (statusEl) {
+      statusEl.textContent = "N/A";
+      statusEl.className = "payment-status status-na";
+    }
+    summaryCards.forEach(p => (p.textContent = "0 KES"));
+    if (billToEl) billToEl.innerHTML = "<p>No patient selected</p>";
+    if (patientNameEl) patientNameEl.textContent = "— No patient selected —";
+    if (patientInfoEl) patientInfoEl.textContent = "Age: — | Phone: — | Last Visit: —";
+    return;
   }
 
-  const invoiceTotal = document.querySelector(".invoice-total");
-  if (invoiceTotal) {
-    invoiceTotal.innerHTML = `
-      <p>Subtotal: ${totals.subtotal.toLocaleString()} KES</p>
-      <p>Tax (16%): ${totals.tax.toLocaleString()} KES</p>
-      <p>Discount: ${currentInvoice.discount.toLocaleString()} KES</p>
-      <p>Total: ${totals.total.toLocaleString()} KES</p>
+  const services = Array.isArray(currentInvoice.services) ? currentInvoice.services : [];
+
+  // ===== Render Table Rows =====
+  const renderRows = (tableEl, colCount, rows) => {
+    if (!tableEl) return;
+    if (rows.length === 0) {
+      clearTable(tableEl, colCount, "No services added");
+    } else {
+      tableEl.innerHTML = rows.map(s => {
+        const total = (s.qty || 0) * (s.unitPrice || 0);
+        return `
+          <tr>
+            <td>${s.date ? new Date(s.date).toLocaleDateString() : "-"}</td>
+            <td>${s.service || "-"}</td>
+            <td>${s.desc || "-"}</td>
+            <td>${s.qty || 0}</td>
+            <td>${(s.unitPrice || 0).toLocaleString()}</td>
+            <td>${total.toLocaleString()}</td>
+            ${tableEl === tbody ? `<td class="action-cell">
+              <button class="action-btn btn-edit"><i class="fas fa-edit"></i></button>
+              <button class="action-btn btn-delete"><i class="fas fa-trash"></i></button>
+            </td>` : ""}
+          </tr>
+        `;
+      }).join("");
+    }
+  };
+
+  renderRows(tbody, 7, services);
+  renderRows(tbodyInvoice, 6, services);
+
+  // ===== Patient Header =====
+  const patientObj = currentInvoice.patientId && typeof currentInvoice.patientId === "object"
+    ? currentInvoice.patientId
+    : {};
+
+  // Extract system ID safely from backend object
+  const systemId = patientObj.patientId || patientObj._id || 
+                   (typeof currentInvoice.patientId === "string" ? currentInvoice.patientId : "N/A");
+
+  const firstName = patientObj.firstName || "";
+  const lastName = patientObj.lastName || "";
+  const name = currentInvoice.patientName || `${firstName} ${lastName}`.trim() || "—";
+
+
+  const age = patientObj.age || "—";
+  const phone = patientObj.phone || "—";
+  const lastVisit = patientObj.updatedAt ? new Date(patientObj.updatedAt).toLocaleDateString() : "—";
+  const address = patientObj.address || "—";
+  const email = patientObj.email || "—";
+
+  // ===== Update DOM =====
+  if (patientNameEl) {
+    patientNameEl.style.opacity = 0;
+    patientNameEl.textContent = `${name} (ID: ${systemId})`;
+    setTimeout(() => patientNameEl.style.opacity = 1, 50);
+  }
+
+  if (patientInfoEl) {
+    patientInfoEl.style.opacity = 0;
+    patientInfoEl.textContent = `Age: ${age} | Phone: ${phone} | Last Visit: ${lastVisit}`;
+    setTimeout(() => patientInfoEl.style.opacity = 1, 50);
+  }
+
+  if (billToEl) {
+    billToEl.style.opacity = 0;
+    billToEl.innerHTML = `
+      <h4>Bill To:</h4>
+      <p>${name}</p>
+      <p>${address}</p>
+      <p>Phone: ${phone}</p>
+      <p>Email: ${email}</p>
+    `;
+    setTimeout(() => billToEl.style.opacity = 1, 50);
+  }
+
+  // ===== Totals =====
+  const totals = calculateTotals(currentInvoice);
+  if (summaryCards.length >= 4) {
+    summaryCards[0].textContent = formatKES(totals.subtotal);
+    summaryCards[1].textContent = formatKES(totals.tax);
+    summaryCards[3].textContent = formatKES(totals.total);
+  }
+
+  if (invoiceTotalEl) {
+    invoiceTotalEl.innerHTML = `
+      <p>Subtotal: ${formatKES(totals.subtotal)}</p>
+      <p>Tax (16%): ${formatKES(totals.tax)}</p>
+      <p>Discount: ${formatKES(currentInvoice.discount)}</p>
+      <p><strong>Total: ${formatKES(totals.total)}</strong></p>
     `;
   }
 
-  const statusEl = document.querySelector(".payment-status");
+  // ===== Payment Status =====
   if (statusEl) {
-    statusEl.textContent = currentInvoice.status === "paid" ? "Paid" : "Unpaid";
-    statusEl.className = `payment-status status-${currentInvoice.status}`;
+    const paid = currentInvoice.status === "paid";
+    statusEl.textContent = paid ? "Paid" : "Unpaid";
+    statusEl.className = `payment-status status-${paid ? "paid" : "unpaid"}`;
   }
 }
 
 // =========================== Calculate Totals
 function calculateTotals(invoice) {
-  const subtotal = invoice.services.reduce((acc, s) => acc + s.qty * s.unitPrice, 0);
+  const services = Array.isArray(invoice.services) ? invoice.services : [];
+  const subtotal = services.reduce(
+    (acc, s) => acc + ((Number(s.qty) || 0) * (Number(s.unitPrice) || 0)),
+    0
+  );
   const tax = Math.round(subtotal * 0.16);
-  const total = subtotal + tax - (invoice.discount || 0);
+  const total = Math.round((subtotal + tax - (Number(invoice.discount) || 0)) * 100) / 100;
   return { subtotal, tax, total };
 }
 
@@ -249,15 +441,29 @@ async function openServiceModal(service = null, index = null) {
   const newService = prompt(`Enter Service Name:`, serviceName);
   if (!newService) return;
   const newDesc = prompt("Enter Description:", desc);
-  const newQty = parseInt(prompt("Enter Quantity:", qty));
-  const newPrice = parseFloat(prompt("Enter Unit Price:", price));
+  const newQty = parseInt(prompt("Enter Quantity:", qty)) || 1;
+  const newPrice = parseFloat(prompt("Enter Unit Price:", price)) || 1000;
+  
+  // 🟢 Add this prompt for source selection
+  const newSource = prompt(
+    "Enter Source (pharmacy, lab, consultation, other):",
+    service?.source || "other"
+  );
+
+  // ✅ sanitize and ensure it's valid
+  const validSources = ["pharmacy", "lab", "consultation", "other"];
+  const source =
+    validSources.includes(newSource?.toLowerCase()) 
+      ? newSource.toLowerCase() 
+      : "other";
 
   const serviceObj = {
     date: new Date(),
     service: newService,
     desc: newDesc,
     qty: newQty,
-    unitPrice: newPrice
+    unitPrice: newPrice,
+    source, // ✅ valid and aligned with backend schema
   };
 
   if (index !== null) {
@@ -266,17 +472,38 @@ async function openServiceModal(service = null, index = null) {
     currentInvoice.services.push(serviceObj);
   }
 
-  currentInvoice = await updateInvoice(currentInvoice._id, { services: currentInvoice.services });
+  // ✅ Ensure every service still has a valid source
+  currentInvoice.services = currentInvoice.services.map(s => ({
+    ...s,
+    source: validSources.includes(s.source) ? s.source : "other",
+  }));
+
+  currentInvoice = await updateInvoice(currentInvoice._id, {
+    services: currentInvoice.services,
+  });
+
   renderInvoice();
 }
 
 async function openDiscountModal() {
-  const discount = parseFloat(prompt("Enter discount amount:", currentInvoice.discount || 0));
-  if (!isNaN(discount)) {
-    currentInvoice.discount = discount;
-    currentInvoice = await updateInvoice(currentInvoice._id, { discount });
-    renderInvoice();
-  }
+  const newDiscount = parseFloat(prompt("Enter discount amount:", currentInvoice.discount || 0));
+  if (isNaN(newDiscount)) return;
+
+  currentInvoice.discount = newDiscount;
+
+  // ✅ Ensure all services have a valid source before update
+  currentInvoice.services = currentInvoice.services.map(s => ({
+    ...s,
+    source: s.source || "other"
+
+  }));
+
+  currentInvoice = await updateInvoice(currentInvoice._id, {
+    discount: newDiscount,
+    services: currentInvoice.services
+  });
+
+  renderInvoice();
 }
 
 // =========================== Export CSV
@@ -315,3 +542,23 @@ async function exportPDF() {
     alert("Failed to export PDF. Check console for details.");
   }
 }
+
+// ✅ Logout handler (safe and consistent)
+function handleLogout() {
+  localStorage.removeItem("token");
+  sessionStorage.clear();
+  window.location.href = "index.html";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", handleLogout);
+    console.log("✅ Logout listener attached"); // for debugging
+  } else {
+    console.warn("⚠️ Logout button not found in DOM.");
+  }
+});
+
+
+})

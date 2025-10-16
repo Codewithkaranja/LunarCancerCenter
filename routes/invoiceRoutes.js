@@ -1,34 +1,48 @@
+// ==========================
 // routes/invoiceRoutes.js
+// ==========================
 import express from "express";
 import {
-  getInvoices,
+  getInvoicesWithPatientName as getInvoices,       // ✅ new version
   createInvoice,
   updateInvoice,
   deleteInvoice,
-  getInvoiceById,
+  getInvoiceByIdWithPatientName as getInvoiceById, // ✅ new version
   exportInvoicesCSV,
   exportInvoicesPDF,
   getInvoiceSummary,
-  markInvoicePaid
+  markInvoicePaidFlexible as markInvoicePaid       // ✅ new version
 } from "../controllers/invoiceController.js";
 
 import { validateInvoiceQuery } from "../middleware/validateInvoiceQuery.js";
 
 const router = express.Router();
 
+// ==========================
+// 📦 Export & Summary Routes
+// ==========================
+router.get("/export/csv", exportInvoicesCSV);
+router.get("/export/pdf", exportInvoicesPDF);
+router.get("/summary/report", getInvoiceSummary);
+
+// ==========================
+// 🧾 Invoice Collection Routes
+// ==========================
 router.route("/")
-  .get(validateInvoiceQuery, getInvoices)   // ✅ with validation
+  .get(validateInvoiceQuery, getInvoices) // ✅ Validates query params
   .post(createInvoice);
 
+// ==========================
+// 🧠 Single Invoice Operations
+// ==========================
 router.route("/:id")
   .get(getInvoiceById)
   .put(updateInvoice)
   .delete(deleteInvoice);
 
-router.put("/:id/pay", markInvoicePaid);
-router.get("/summary/report", getInvoiceSummary);
-
-router.get("/export/csv", exportInvoicesCSV);
-router.get("/export/pdf", exportInvoicesPDF);
+// ==========================
+// 💰 Payment Handling
+// ==========================
+router.put("/:id/pay", markInvoicePaid); // ✅ Supports both paid/unpaid toggle
 
 export default router;
