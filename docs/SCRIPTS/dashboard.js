@@ -1,5 +1,8 @@
 // dashboard.js
 
+// myAUTH-HMIS API URL
+//const API_URL = "https://myauth-hmis.onrender.com";
+
 // Global variables
 let currentUser = null;
 let userRoles = [];
@@ -12,7 +15,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Initialize the application
-function initializeApp() {
+async function initializeApp() {
+    // Check authentication with myAUTH-HMIS
+    await checkAuthentication();
+
     // Load user data and settings from localStorage or backend
     loadUserData();
     loadSettings();
@@ -30,6 +36,51 @@ function initializeApp() {
     // Update UI based on loaded data
     updateUI();
 }
+
+// Check authentication
+async function checkAuthentication() {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+        // Not logged in, redirect to myAUTH-HMIS login
+        window.location.href = `${API_URL}/login?redirect=${encodeURIComponent(window.location.href)}`;
+        return;
+    }
+
+    // Optionally, verify token with backend
+    try {
+        const res = await fetch(`${API_URL}/api/auth/verify`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Invalid token');
+
+        const data = await res.json();
+        // Store user info from myAUTH-HMIS if needed
+        currentUser = data.user;
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    } catch (err) {
+        console.warn('Token invalid or expired, redirecting to login');
+        localStorage.removeItem('accessToken');
+        window.location.href = `${API_URL}/login?redirect=${encodeURIComponent(window.location.href)}`;
+    }
+}
+
+// Handle logout
+function handleLogout(e) {
+    e.preventDefault();
+    
+    if (confirm('Are you sure you want to logout?')) {
+        // Clear user data
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('accessToken');
+        
+        // Redirect to myAUTH-HMIS login
+        window.location.href = `${API_URL}/logout?redirect=${encodeURIComponent(window.location.href)}`;
+    }
+}
+
+// ... rest of your HMIS dashboard.js remains unchanged ...
+
 
 // Load user data (simulated - replace with actual backend call)
 function loadUserData() {

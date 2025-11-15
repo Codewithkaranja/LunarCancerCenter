@@ -72,6 +72,41 @@ function displayPatientId(patient) {
   return patient.patientId || `PAT${String(patient._id).slice(-4).toUpperCase()}`;
 }
 
+// Load staff list (doctors only)
+async function loadStaffList(selectedDoctorId = null) {
+  try {
+    const res = await fetch(`${API_BASE}/api/staff`);
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error("Failed to load staff");
+
+    const staffSelect = document.getElementById("doctor");
+    staffSelect.innerHTML = `<option value="">-- Select Doctor --</option>`;
+
+    // Only include doctors
+    const doctors = data.staff.filter(s => s.role === "doctor");
+
+    doctors.forEach(s => {
+      const fullName = `${s.firstName} ${s.lastName}`.trim();
+      const option = document.createElement("option");
+      option.value = s._id;          // Store _id for backend
+      option.textContent = fullName; // Show full name
+      if (selectedDoctorId && s._id === selectedDoctorId) {
+        option.selected = true;
+      }
+      staffSelect.appendChild(option);
+    });
+
+    if (doctors.length === 0) {
+      staffSelect.innerHTML = `<option value="">No doctors available</option>`;
+    }
+  } catch (err) {
+    console.error("❌ Error loading staff list:", err);
+    showAlert("⚠️ Failed to load staff members.", "error");
+  }
+}
+
+
+
 
 // --------------------------
 // Export CSV Function
@@ -238,15 +273,18 @@ async function viewPatient(patientId) {
 // ==========================
 // Edit Patient (Load into Modal)
 // ==========================
+// Edit patient
 async function editPatient(patientId) {
   try {
     const res = await fetch(`${API_BASE}/api/patients/${patientId}`);
     const data = await res.json();
-
     if (!res.ok || !data.success) throw new Error(data.message || "Patient not found");
     const p = data.patient;
 
-    // 🧩 Fill modal fields safely
+    // Load doctors and select the patient's doctor
+    await loadStaffList(p.doctor); // use p.doctor (doctor's _id)
+
+    // Fill the rest of the form
     document.getElementById("edit-patientId").value = p.patientId || "";
     document.getElementById("first-name").value = p.firstName || "";
     document.getElementById("last-name").value = p.lastName || "";
@@ -257,9 +295,7 @@ async function editPatient(patientId) {
     document.getElementById("address").value = p.address || "";
 
     document.getElementById("diagnosis").value = p.diagnosis || "";
-    document.getElementById("diagnosis-date").value = p.diagnosisDate
-      ? p.diagnosisDate.split("T")[0]
-      : "";
+    document.getElementById("diagnosis-date").value = p.diagnosisDate ? p.diagnosisDate.split("T")[0] : "";
     document.getElementById("stage").value = p.stage || "";
     document.getElementById("treatment-plan").value = p.treatmentPlan || "";
     document.getElementById("allergies").value = p.allergies || "";
@@ -268,22 +304,14 @@ async function editPatient(patientId) {
     document.getElementById("insurance-provider").value = p.insuranceProvider || "";
     document.getElementById("insurance-id").value = p.insuranceId || "";
     document.getElementById("coverage").value = p.coverage || "";
-    document.getElementById("valid-until").value = p.validUntil
-      ? p.validUntil.split("T")[0]
-      : "";
+    document.getElementById("valid-until").value = p.validUntil ? p.validUntil.split("T")[0] : "";
 
-    document.getElementById("doctor").value = p.doctor || "";
     document.getElementById("status").value = p.status || "";
-    document.getElementById("next-appointment").value = p.nextAppointment
-      ? p.nextAppointment.split("T")[0]
-      : "";
+    document.getElementById("next-appointment").value = p.nextAppointment ? p.nextAppointment.split("T")[0] : "";
 
-    // 🏷️ Update modal title and button text
     document.querySelector(".modal-title").textContent = "Edit Patient";
-    const saveBtn = document.getElementById("savePatientBtn");
-    saveBtn.textContent = "Update Patient";
+    document.getElementById("savePatientBtn").textContent = "Update Patient";
 
-    // ✅ Open the modal
     openModal();
 
   } catch (error) {
@@ -291,6 +319,8 @@ async function editPatient(patientId) {
     showAlert("Failed to load patient for editing.", "error");
   }
 }
+
+
 
 
 // DELETE Patient
@@ -632,9 +662,15 @@ const handleBilling = (id) => window.location.href = `invoice.html?patientId=${i
 // --------------------------
 // Modal
 // --------------------------
-const openModal = () => {
+const openModal = async (selectedDoctor = null) => {
+  // Load staff first, optionally pre-select a doctor
+  await loadStaffList(selectedDoctor);
+
+  // Show the modal
   document.getElementById('patientModal').style.display = 'block';
 };
+
+
 
 const closeModal = () => {
   document.getElementById('patientModal').style.display = 'none';
@@ -670,10 +706,10 @@ const openTab = (evt, tabName) => {
 // --------------------------
 // Save or Update Patient
 // --------------------------
+// Save patient
 async function savePatient() {
-  const patientId = document.getElementById("edit-patientId")?.value.trim();
+  const patientId = document.getElementById("edit-patientId")?.value;
 
-  // Collect form data
   const formData = {
     patientId,
     firstName: document.getElementById("first-name")?.value.trim(),
@@ -693,7 +729,7 @@ async function savePatient() {
     insuranceId: document.getElementById("insurance-id")?.value.trim(),
     coverage: document.getElementById("coverage")?.value.trim(),
     validUntil: document.getElementById("valid-until")?.value || null,
-    doctor: document.getElementById("doctor")?.value.trim() || null,
+    doctor: document.getElementById("doctor")?.value || null, // _id
     status: document.getElementById("status")?.value || "active",
     nextAppointment: document.getElementById("next-appointment")?.value || null,
   };
@@ -704,7 +740,6 @@ async function savePatient() {
     return;
   }
 
-  // 🧩 Log what’s being sent (debug)
   console.log("Saving patient with data:", formData);
 
   try {
@@ -720,7 +755,7 @@ async function savePatient() {
     });
 
     const data = await res.json();
-    console.log("Server response:", data); // 🧩 For debugging
+    console.log("Server response:", data);
 
     if (res.ok && data.success) {
       showAlert(
