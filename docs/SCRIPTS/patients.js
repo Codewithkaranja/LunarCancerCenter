@@ -73,25 +73,27 @@ function displayPatientId(patient) {
 }
 
 // Load staff list (doctors only)
+// Load doctors into dropdown
 async function loadStaffList(selectedDoctorId = null) {
   try {
     const res = await fetch(`${API_BASE}/api/staff`);
+    console.log("Staff fetch status:", res.status, res.statusText); // debug HTTP response
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
     const data = await res.json();
-    if (!res.ok || !data.success) throw new Error("Failed to load staff");
+    if (!data.success) throw new Error("API responded with failure");
 
     const staffSelect = document.getElementById("doctor");
     staffSelect.innerHTML = `<option value="">-- Select Doctor --</option>`;
 
-    // Only include doctors
     const doctors = data.staff.filter(s => s.role === "doctor");
 
-    doctors.forEach(s => {
-      const fullName = `${s.firstName} ${s.lastName}`.trim();
+    doctors.forEach(doc => {
       const option = document.createElement("option");
-      option.value = s._id;          // Store _id for backend
-      option.textContent = fullName; // Show full name
-      if (selectedDoctorId && s._id === selectedDoctorId) {
-        option.selected = true;
+      option.value = doc._id;             // backend expects _id
+      option.textContent = `${doc.firstName} ${doc.lastName}`;
+      if (selectedDoctorId && doc._id === selectedDoctorId) {
+        option.selected = true;           // select current doctor
       }
       staffSelect.appendChild(option);
     });
@@ -99,11 +101,13 @@ async function loadStaffList(selectedDoctorId = null) {
     if (doctors.length === 0) {
       staffSelect.innerHTML = `<option value="">No doctors available</option>`;
     }
+
   } catch (err) {
     console.error("❌ Error loading staff list:", err);
     showAlert("⚠️ Failed to load staff members.", "error");
   }
 }
+
 
 
 
@@ -274,17 +278,19 @@ async function viewPatient(patientId) {
 // Edit Patient (Load into Modal)
 // ==========================
 // Edit patient
+// Edit patient modal
 async function editPatient(patientId) {
   try {
     const res = await fetch(`${API_BASE}/api/patients/${patientId}`);
     const data = await res.json();
+
     if (!res.ok || !data.success) throw new Error(data.message || "Patient not found");
     const p = data.patient;
 
-    // Load doctors and select the patient's doctor
-    await loadStaffList(p.doctor); // use p.doctor (doctor's _id)
+    // Load doctors first, pre-select patient’s doctor
+    await loadStaffList(p.doctor || null);
 
-    // Fill the rest of the form
+    // Fill patient form
     document.getElementById("edit-patientId").value = p.patientId || "";
     document.getElementById("first-name").value = p.firstName || "";
     document.getElementById("last-name").value = p.lastName || "";
@@ -293,32 +299,31 @@ async function editPatient(patientId) {
     document.getElementById("phone").value = p.phone || "";
     document.getElementById("email").value = p.email || "";
     document.getElementById("address").value = p.address || "";
-
     document.getElementById("diagnosis").value = p.diagnosis || "";
     document.getElementById("diagnosis-date").value = p.diagnosisDate ? p.diagnosisDate.split("T")[0] : "";
     document.getElementById("stage").value = p.stage || "";
     document.getElementById("treatment-plan").value = p.treatmentPlan || "";
     document.getElementById("allergies").value = p.allergies || "";
     document.getElementById("medical-history").value = p.medicalHistory || "";
-
     document.getElementById("insurance-provider").value = p.insuranceProvider || "";
     document.getElementById("insurance-id").value = p.insuranceId || "";
     document.getElementById("coverage").value = p.coverage || "";
     document.getElementById("valid-until").value = p.validUntil ? p.validUntil.split("T")[0] : "";
-
     document.getElementById("status").value = p.status || "";
     document.getElementById("next-appointment").value = p.nextAppointment ? p.nextAppointment.split("T")[0] : "";
 
     document.querySelector(".modal-title").textContent = "Edit Patient";
     document.getElementById("savePatientBtn").textContent = "Update Patient";
 
+    // ✅ Open modal **after dropdown is ready**
     openModal();
 
-  } catch (error) {
-    console.error("❌ Error loading patient for edit:", error);
+  } catch (err) {
+    console.error("❌ Error loading patient for edit:", err);
     showAlert("Failed to load patient for editing.", "error");
   }
 }
+
 
 
 
@@ -662,13 +667,11 @@ const handleBilling = (id) => window.location.href = `invoice.html?patientId=${i
 // --------------------------
 // Modal
 // --------------------------
-const openModal = async (selectedDoctor = null) => {
-  // Load staff first, optionally pre-select a doctor
-  await loadStaffList(selectedDoctor);
-
-  // Show the modal
+const openModal = () => {
+  // Just show the modal
   document.getElementById('patientModal').style.display = 'block';
 };
+
 
 
 
@@ -729,26 +732,25 @@ async function savePatient() {
     insuranceId: document.getElementById("insurance-id")?.value.trim(),
     coverage: document.getElementById("coverage")?.value.trim(),
     validUntil: document.getElementById("valid-until")?.value || null,
-    doctor: document.getElementById("doctor")?.value || null, // _id
+    doctor: document.getElementById("doctor")?.value || null, // send _id
     status: document.getElementById("status")?.value || "active",
     nextAppointment: document.getElementById("next-appointment")?.value || null,
   };
 
-  // Validate required fields
   if (!formData.firstName || !formData.lastName || !formData.dob) {
     showAlert("Please fill in First Name, Last Name, and Date of Birth.", "error");
     return;
   }
 
-  console.log("Saving patient with data:", formData);
+  console.log("Submitting patient data:", formData);
 
   try {
     const method = patientId ? "PUT" : "POST";
-    const endpoint = patientId
+    const url = patientId
       ? `${API_BASE}/api/patients/${patientId}`
       : `${API_BASE}/api/patients`;
 
-    const res = await fetch(endpoint, {
+    const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
@@ -758,23 +760,20 @@ async function savePatient() {
     console.log("Server response:", data);
 
     if (res.ok && data.success) {
-      showAlert(
-        patientId
-          ? "✅ Patient updated successfully!"
-          : "✅ Patient added successfully!",
-        "success"
-      );
+      showAlert(patientId ? "✅ Patient updated successfully!" : "✅ Patient added successfully!", "success");
       closeModal();
       loadPatients();
     } else {
       console.error("Server error:", data);
       showAlert(data.message || "Failed to save patient.", "error");
     }
+
   } catch (err) {
-    console.error("Save error:", err);
-    showAlert("⚠️ Error: Unable to save patient.", "error");
+    console.error("❌ Save error:", err);
+    showAlert("⚠️ Unable to save patient.", "error");
   }
 }
+
 
 
 // --------------------------
