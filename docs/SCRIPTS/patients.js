@@ -1,5 +1,5 @@
 // ==========================
-// patients.js (Upgraded & Optimized)
+// patients.js (Rewritten & Fixed)
 // ==========================
 
 // Base API URL
@@ -12,25 +12,130 @@ let currentPage = 1;
 const patientsPerPage = 5;
 let allPatients = [];
 let filteredPatients = [];
-//let currentSort = { column: null, direction: 'asc' };
 let currentSort = { column: "createdAt", direction: "desc" };
-
-let userRole = 'doctor'; // Should come from auth
+let userRole = 'doctor';
 let totalCount = 0;
-let currentUser = { role: 'admin' }; // <- set this dynamically from your app/session
+let currentUser = null;
 
-//debugPermissions(); // ✅ Now safe
-
-
-// ==============================
-// patients.js (structure order)
-// ==============================
-
-
-
-// 2️⃣ Helper functions
-// Custom Alert Helper
 // --------------------------
+// RBAC Configuration
+// --------------------------
+const rbacConfig = {
+  doctor: {
+    can: ['view_patients', 'add_patients', 'edit_patients', 'view_prescriptions', 'edit_prescriptions', 'view_billing', 'export_data', 'manage_all']
+  },
+  nurse: {
+    can: ['view_patients', 'add_patients', 'edit_patients', 'view_prescriptions']
+  },
+  admin: {
+    can: ['view_patients', 'add_patients', 'edit_patients', 'delete_patients', 'view_prescriptions', 'view_billing', 'export_data', 'manage_all']
+  },
+  pharmacist: {
+    can: ['view_patients', 'view_prescriptions', 'edit_prescriptions']
+  }
+};
+
+// ==========================
+// Initialization Functions
+// ==========================
+
+// Initialize current user
+function initializeCurrentUser() {
+  // Try to get user from localStorage/sessionStorage
+  const userData = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+  if (userData) {
+    currentUser = JSON.parse(userData);
+  } else {
+    // Fallback for demo - remove in production
+    currentUser = { role: 'admin', userId: 'demo' };
+    console.warn('No user data found, using demo admin role');
+  }
+  userRole = currentUser.role;
+  debugPermissions();
+}
+
+// Debug current user and permissions
+function debugCurrentUser() {
+  console.log('🔍 Current User Debug:');
+  console.log('- currentUser:', currentUser);
+  console.log('- userRole:', userRole);
+  console.log('- Permissions for role:', rbacConfig[currentUser.role]?.can);
+}
+
+// Debug permissions
+function debugPermissions() {
+  if (!currentUser || !currentUser.role) {
+    console.warn("No current user or role set!");
+    return;
+  }
+
+  const role = currentUser.role.toLowerCase();
+  const perms = rbacConfig[role]?.can || [];
+  
+  console.log(`Current user role: ${currentUser.role}`);
+  console.log("Permissions available:", perms);
+
+  if (perms.includes('delete_patients')) {
+    console.log("✅ User CAN delete patients (trash icon should show)");
+  } else {
+    console.log("❌ User CANNOT delete patients (trash icon hidden)");
+  }
+}
+
+// ==========================
+// Utility Functions
+// ==========================
+
+// Permission checker
+const checkPermission = (action) => {
+  if (!currentUser || !currentUser.role) return false;
+  const rolePermissions = rbacConfig[currentUser.role]?.can || [];
+  return rolePermissions.includes(action);
+};
+
+// Date formatting
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return isNaN(date) ? 'N/A' : date.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// Age calculation
+const calculateAge = (dob) => {
+  if (!dob) return 'N/A';
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+};
+
+// ID normalization
+function normalizeId(patient) {
+  return patient.patientId || patient._id;
+}
+
+// Display patient ID
+function displayPatientId(patient) {
+  return patient.patientId || `PAT${String(patient._id).slice(-4).toUpperCase()}`;
+}
+
+// Generate new patient ID
+const generatePatientId = () => {
+  const numericIds = allPatients.map(p => {
+    const match = (p.patientId || "").match(/\d+$/);
+    return match ? parseInt(match[0], 10) : null;
+  }).filter(n => n !== null);
+  const maxId = numericIds.length ? Math.max(...numericIds) : 0;
+  return `PAT${String(maxId + 1).padStart(4, '0')}`;
+};
+
+// ==========================
+// Alert & Notification Functions
+// ==========================
+
+// Custom Alert Helper
 function showAlert(message, type = "success") {
   const alertBox = document.createElement("div");
   alertBox.className = `custom-alert ${type}`;
@@ -47,9 +152,9 @@ function showAlert(message, type = "success") {
     setTimeout(() => alertBox.remove(), 300);
   }, 3000);
 }
-// ✅ Success Alert Helper (Green Popup)
+
+// Success Alert Helper
 function showSuccessAlert(message) {
-  // Create the container
   const alertBox = document.createElement("div");
   alertBox.className = "success-alert";
   alertBox.innerHTML = `
@@ -58,42 +163,107 @@ function showSuccessAlert(message) {
   `;
   document.body.appendChild(alertBox);
 
-  // Auto-remove after 3 seconds
   setTimeout(() => {
     alertBox.classList.add("fade-out");
     setTimeout(() => alertBox.remove(), 500);
   }, 3000);
 }
-function normalizeId(patient) {
-  return patient.patientId; // ✅ backend ID
-}
 
-function displayPatientId(patient) {
-  return patient.patientId || `PAT${String(patient._id).slice(-4).toUpperCase()}`;
-}
+// ==========================
+// Data Loading Functions
+// ==========================
 
-// Load staff list (doctors only)
+// Load patients with improved error handling
+const loadPatients = async (page = currentPage) => {
+  const searchText = document.getElementById("search-name")?.value.trim().toLowerCase() || "";
+  const diagnosisFilter = document.getElementById("filter-diagnosis")?.value || "";
+  const statusFilter = document.getElementById("filter-status")?.value || "";
+
+  const sortColumn = currentSort?.column || "createdAt";
+  const sortDirection = currentSort?.direction || "desc";
+
+  const query = new URLSearchParams({
+    search: searchText,
+    diagnosis: diagnosisFilter,
+    status: statusFilter,
+    sortColumn,
+    sortDirection,
+    page,
+    limit: patientsPerPage
+  });
+
+  try {
+    console.log('Fetching patients from:', `${API_BASE}/api/patients?${query.toString()}`);
+    
+    const res = await fetch(`${API_BASE}/api/patients?${query.toString()}`);
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    }
+
+    const data = await res.json();
+    console.log('Patients API response:', data);
+
+    // Handle different possible response structures
+    if (data.patients) {
+      allPatients = Array.isArray(data.patients) ? data.patients : [];
+    } else if (Array.isArray(data)) {
+      allPatients = data;
+    } else {
+      allPatients = [];
+    }
+
+    filteredPatients = [...allPatients];
+    totalCount = data.totalCount || data.count || allPatients.length;
+    currentPage = data.page || page;
+
+    renderPatients();
+    
+    const totalPages = data.totalPages || Math.ceil(totalCount / patientsPerPage) || 1;
+    renderPagination(currentPage, totalPages, totalCount);
+
+  } catch (err) {
+    console.error("Error loading patients:", err);
+    
+    allPatients = [];
+    filteredPatients = [];
+    totalCount = 0;
+
+    renderPatients();
+    renderPagination(1, 1, 0);
+    showAlert("⚠️ Failed to load patients: " + err.message, "error");
+  }
+};
+
 // Load doctors into dropdown
 async function loadStaffList(selectedDoctorId = null) {
   try {
+    console.log('Loading staff list...');
     const res = await fetch(`${API_BASE}/api/staff`);
-    console.log("Staff fetch status:", res.status, res.statusText); // debug HTTP response
+    console.log("Staff fetch status:", res.status, res.statusText);
+
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
     const data = await res.json();
     if (!data.success) throw new Error("API responded with failure");
 
     const staffSelect = document.getElementById("doctor");
+    if (!staffSelect) {
+      console.error("Doctor select element not found");
+      return;
+    }
+
     staffSelect.innerHTML = `<option value="">-- Select Doctor --</option>`;
 
     const doctors = data.staff.filter(s => s.role === "doctor");
+    console.log(`Found ${doctors.length} doctors`);
 
     doctors.forEach(doc => {
       const option = document.createElement("option");
-      option.value = doc._id;             // backend expects _id
+      option.value = doc._id;
       option.textContent = `${doc.firstName} ${doc.lastName}`;
       if (selectedDoctorId && doc._id === selectedDoctorId) {
-        option.selected = true;           // select current doctor
+        option.selected = true;
       }
       staffSelect.appendChild(option);
     });
@@ -108,145 +278,180 @@ async function loadStaffList(selectedDoctorId = null) {
   }
 }
 
+// ==========================
+// Rendering Functions
+// ==========================
 
-
-
-
-// --------------------------
-// Export CSV Function
-// --------------------------
-function exportCSV() {
-  if (!filteredPatients.length) {
-    alert("No patients to export.");
+// Render patients table
+function renderPatients() {
+  const tbody = document.querySelector('.patients-table tbody');
+  if (!tbody) {
+    console.error('Patients table tbody not found');
     return;
   }
 
-  const headers = [
-    "Patient ID",
-    "Name",
-    "Age",
-    "Gender",
-    "Diagnosis",
-    "Stage",
-    "Doctor",
-    "Next Appointment",
-    "Status"
-  ];
+  tbody.innerHTML = '';
 
-  const rows = filteredPatients.map(p => [
-    displayPatientId(p),
-    `${p.firstName} ${p.lastName}`,
-    calculateAge(p.dob),
-    p.gender || "N/A",
-    p.diagnosis || "N/A",
-    p.stage || "N/A",
-    p.doctor || "N/A",
-    formatDate(p.nextAppointment),
-    p.status || "N/A"
-  ]);
-
-  // Build CSV string
-  let csvContent =
-    headers.join(",") +
-    "\n" +
-    rows.map(r => r.map(value => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
-
-  // Create downloadable file
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", "patients_export.csv");
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-// --------------------------
-// Export PDF Function
-// --------------------------
-async function exportPDF() {
-  if (!filteredPatients.length) {
-    alert("No patients to export.");
+  if (!filteredPatients || filteredPatients.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center no-data">No patients found.</td>
+      </tr>
+    `;
     return;
   }
 
-  // ✅ Use jsPDF (make sure it's loaded in your HTML)
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF("l", "pt", "a4"); // landscape orientation
+  filteredPatients.forEach(patient => {
+    const backendId = normalizeId(patient);
+    const displayId = displayPatientId(patient);
+    const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Unnamed';
+    const ageGender = patient.dob
+      ? `${calculateAge(patient.dob)} / ${patient.gender || 'N/A'}`
+      : patient.gender || 'N/A';
+    const statusClass = `status-${patient.status || 'unknown'}`;
+    const statusText = patient.status
+      ? patient.status[0].toUpperCase() + patient.status.slice(1)
+      : 'N/A';
 
-  // Title
-  doc.setFontSize(16);
-  doc.text("Patient List Report", 40, 40);
-  doc.setFontSize(10);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, 40, 60);
+    const actions = [
+      checkPermission('view_patients') ? `<button class="action-btn btn-view" data-id="${backendId}" title="View Patient"><i class="fas fa-eye"></i></button>` : '',
+      checkPermission('edit_patients') ? `<button class="action-btn btn-edit" data-id="${backendId}" title="Edit Patient"><i class="fas fa-edit"></i></button>` : '',
+      checkPermission('delete_patients') ? `<button class="action-btn btn-delete" data-id="${backendId}" title="Delete Patient"><i class="fas fa-trash"></i></button>` : '',
+      checkPermission('view_prescriptions') ? `<button class="action-btn btn-prescription" data-id="${backendId}" title="View Prescriptions"><i class="fas fa-prescription-bottle-alt"></i></button>` : '',
+      checkPermission('view_billing') ? `<button class="action-btn btn-billing" data-id="${backendId}" title="View Billing"><i class="fas fa-file-invoice"></i></button>` : '',
+    ].filter(Boolean).join(' ');
 
-  // Define table headers
-  const headers = [
-    ["Patient ID", "Name", "Age", "Gender", "Diagnosis", "Stage", "Doctor", "Next Appointment", "Status"]
-  ];
-
-  // Build table data
-  const rows = filteredPatients.map(p => [
-    displayPatientId(p),
-    `${p.firstName} ${p.lastName}`,
-    calculateAge(p.dob),
-    p.gender || "N/A",
-    p.diagnosis || "N/A",
-    p.stage || "N/A",
-    p.doctor || "N/A",
-    formatDate(p.nextAppointment),
-    p.status || "N/A"
-  ]);
-
-  // ✅ Use autoTable plugin
-  doc.autoTable({
-    head: headers,
-    body: rows,
-    startY: 80,
-    theme: "grid",
-    styles: { fontSize: 9, cellPadding: 4 },
-    headStyles: { fillColor: [40, 167, 69] }, // green header
-    alternateRowStyles: { fillColor: [245, 245, 245] }
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${displayId}</td>
+      <td>${fullName}</td>
+      <td>${ageGender}</td>
+      <td>${patient.diagnosis || 'N/A'}</td>
+      <td>${patient.stage || 'N/A'}</td>
+      <td>${patient.doctor || 'N/A'}</td>
+      <td>${formatDate(patient.nextAppointment)}</td>
+      <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+      <td class="action-cell">${actions}</td>
+    `;
+    tbody.appendChild(row);
   });
+}
 
-  // Footer with page number
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 80, doc.internal.pageSize.height - 30);
+// Render pagination
+const renderPagination = (current, totalPages, totalCount) => {
+  const container = document.getElementById("pagination");
+  const info = document.getElementById("pagination-info");
+  
+  if (!container || !info) {
+    console.error('Pagination elements not found');
+    return;
   }
 
-  // ✅ Save
-  doc.save("patients_report.pdf");
-}
+  info.textContent = totalCount > 0
+    ? `Showing ${(current-1)*patientsPerPage+1}-${Math.min(current*patientsPerPage,totalCount)} of ${totalCount} patients`
+    : "No patients found";
 
+  if (totalPages <= 1) { container.innerHTML = ''; return; }
 
+  const maxVisible = 5;
+  let start = Math.max(1, current - Math.floor(maxVisible / 2));
+  let end = Math.min(totalPages, start + maxVisible - 1);
+  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
 
+  let html = `<button class="pagination-btn prev-btn ${current===1?'disabled':''}">&laquo; Previous</button>`;
+  if (start > 1) html += `<button class="pagination-btn page-btn" data-page="1">1</button><span class="ellipsis">...</span>`;
+  for (let i = start; i <= end; i++) html += `<button class="pagination-btn page-btn ${i===current?'active':''}" data-page="${i}">${i}</button>`;
+  if (end < totalPages) html += `<span class="ellipsis">...</span><button class="pagination-btn page-btn" data-page="${totalPages}">${totalPages}</button>`;
+  html += `<button class="pagination-btn next-btn ${current===totalPages?'disabled':''}">Next &raquo;</button>`;
 
-// 4️⃣ 🧩 Add your missing setupEventListeners here:
-// Event Listeners Setup
-// --------------------------
-function setupEventListeners() {
-  const searchInput = document.getElementById("search-name");
-  const diagnosisFilter = document.getElementById("filter-diagnosis");
-  const statusFilter = document.getElementById("filter-status");
-  const sortSelect = document.getElementById("sort-dropdown");
+  container.innerHTML = html;
 
-  searchInput?.addEventListener("input", handleSearch);
-  diagnosisFilter?.addEventListener("change", loadPatients);
-  statusFilter?.addEventListener("change", loadPatients);
-  sortSelect?.addEventListener("change", (e) => handleSortDropdown(e.target.value));
+  container.querySelector(".prev-btn")?.addEventListener("click", () => { if (current > 1) loadPatients(current - 1); });
+  container.querySelectorAll(".page-btn").forEach(btn => btn.addEventListener("click", () => { const p = parseInt(btn.dataset.page, 10); if (p !== current) loadPatients(p); }));
+  container.querySelector(".next-btn")?.addEventListener("click", () => { if (current < totalPages) loadPatients(current + 1); });
+};
 
-  // Optional exports
-  document.getElementById("export-csv")?.addEventListener("click", exportCSV);
-  document.getElementById("export-pdf")?.addEventListener("click", exportPDF);
-}
+// ==========================
+// Event Handlers
+// ==========================
 
-// 5️⃣ 🧩 Add viewPatient() right here, before attaching row listeners
-// ======================
-// VIEW Patient
-// ======================
+// Search handler
+let searchTimeout;
+const handleSearch = () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => { currentPage = 1; loadPatients(); }, 300);
+};
+
+// Sort handlers
+const applySort = (field, direction) => { 
+  currentSort = { column: field, direction }; 
+  loadPatients(currentPage); 
+};
+
+const handleSort = (column) => {
+  const map = { 
+    'Patient ID': 'patientId', 
+    'Name': 'lastName', 
+    'Age/Gender': 'dob', 
+    'Diagnosis': 'diagnosis', 
+    'Stage': 'stage', 
+    'Doctor': 'doctor', 
+    'Next Appointment': 'nextAppointment', 
+    'Status': 'status', 
+    'Created At': 'createdAt' 
+  };
+  const field = map[column]; 
+  if (!field) return;
+  const direction = currentSort.column === field && currentSort.direction === 'asc' ? 'desc' : 'asc';
+  applySort(field, direction);
+};
+
+const handleSortDropdown = (value) => {
+  const map = {
+    'Sort by: Newest First': { field: 'createdAt', direction: 'desc' },
+    'Sort by: Oldest First': { field: 'createdAt', direction: 'asc' },
+    'Sort by: Name A-Z': { field: 'lastName', direction: 'asc' },
+    'Sort by: Name Z-A': { field: 'lastName', direction: 'desc' },
+    'Sort by: Patient ID': { field: 'patientId', direction: 'asc' }
+  };
+
+  const sortConfig = map[value];
+  if (!sortConfig) return;
+
+  currentSort = { column: sortConfig.field, direction: sortConfig.direction };
+  loadPatients(1);
+};
+
+// Row action handlers using event delegation
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+
+  const patientId = btn.dataset.id;
+  if (!patientId) return;
+
+  if (btn.classList.contains('btn-view')) viewPatient(patientId);
+  else if (btn.classList.contains('btn-edit')) editPatient(patientId);
+  else if (btn.classList.contains('btn-delete')) {
+    if (confirm('Are you sure you want to delete this patient?')) {
+      deletePatient(patientId).then(() => {
+        filteredPatients = filteredPatients.filter(p => normalizeId(p) !== patientId);
+        renderPatients();
+      });
+    }
+  } else if (btn.classList.contains('btn-prescription')) handlePrescription(patientId);
+  else if (btn.classList.contains('btn-billing')) handleBilling(patientId);
+});
+
+// Navigation handlers
+const handlePrescription = (id) => window.location.href = `pharmacy.html?patientId=${id}`;
+const handleBilling = (id) => window.location.href = `invoice.html?patientId=${id}`;
+
+// ==========================
+// Patient CRUD Operations
+// ==========================
+
+// View patient details
 async function viewPatient(patientId) {
   try {
     const res = await fetch(`${API_BASE}/api/patients/${patientId}`);
@@ -273,11 +478,6 @@ async function viewPatient(patientId) {
   }
 }
 
-// ======================
-// ==========================
-// Edit Patient (Load into Modal)
-// ==========================
-// Edit patient
 // Edit patient modal
 async function editPatient(patientId) {
   try {
@@ -287,7 +487,7 @@ async function editPatient(patientId) {
     if (!res.ok || !data.success) throw new Error(data.message || "Patient not found");
     const p = data.patient;
 
-    // Load doctors first, pre-select patient’s doctor
+    // Load doctors first, pre-select patient's doctor
     await loadStaffList(p.doctor || null);
 
     // Fill patient form
@@ -315,7 +515,6 @@ async function editPatient(patientId) {
     document.querySelector(".modal-title").textContent = "Edit Patient";
     document.getElementById("savePatientBtn").textContent = "Update Patient";
 
-    // ✅ Open modal **after dropdown is ready**
     openModal();
 
   } catch (err) {
@@ -324,12 +523,7 @@ async function editPatient(patientId) {
   }
 }
 
-
-
-
-
-// DELETE Patient
-// ======================
+// Delete patient
 async function deletePatient(patientId) {
   if (!confirm(`Are you sure you want to delete patient ${patientId}?`)) return;
 
@@ -344,377 +538,20 @@ async function deletePatient(patientId) {
       return;
     }
 
-    alert(`✅ Patient ${patientId} deleted successfully`);
-    loadPatients(); // refresh list
+    showAlert(`✅ Patient ${patientId} deleted successfully`, "success");
+    loadPatients();
   } catch (err) {
     console.error("❌ Error deleting patient:", err);
-    alert("Failed to delete patient.");
-  }
-}
-// 1️⃣ Render patients (function declaration)
-function renderPatients() {
-  const tbody = document.querySelector('.patients-table tbody');
-  tbody.innerHTML = '';
-
-  if (!filteredPatients || filteredPatients.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="9" class="text-center no-data">No patients found.</td>
-      </tr>
-    `;
-    return;
-  }
-
-  filteredPatients.forEach(patient => {
-    const backendId = patient.patientId || normalizeId(patient);
-    const displayId = patient.patientId || `PAT${String(patient._id).slice(-4).toUpperCase()}`;
-    const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Unnamed';
-    const ageGender = patient.dob
-      ? `${calculateAge(patient.dob)} / ${patient.gender || 'N/A'}`
-      : patient.gender || 'N/A';
-    const statusClass = `status-${patient.status || 'unknown'}`;
-    const statusText = patient.status
-      ? patient.status[0].toUpperCase() + patient.status.slice(1)
-      : 'N/A';
-
-    const actions = [
-      checkPermission('view_patients') ? `<button class="action-btn btn-view" data-id="${backendId}" title="View Patient"><i class="fas fa-eye"></i></button>` : '',
-      checkPermission('edit_patients') ? `<button class="action-btn btn-edit" data-id="${backendId}" title="Edit Patient"><i class="fas fa-edit"></i></button>` : '',
-      checkPermission('delete_patients') ? `<button class="action-btn btn-delete" data-id="${backendId}" title="Delete Patient"><i class="fas fa-trash"></i></button>` : '',
-      checkPermission('view_prescriptions') ? `<button class="action-btn btn-prescription" data-id="${backendId}" title="View Prescriptions"><i class="fas fa-prescription-bottle-alt"></i></button>` : '',
-      checkPermission('view_billing') ? `<button class="action-btn btn-billing" data-id="${backendId}" title="View Billing"><i class="fas fa-file-invoice"></i></button>` : '',
-    ].join(' ');
-
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${displayId}</td>
-      <td>${fullName}</td>
-      <td>${ageGender}</td>
-      <td>${patient.diagnosis || 'N/A'}</td>
-      <td>${patient.stage || 'N/A'}</td>
-      <td>${patient.doctor || 'N/A'}</td>
-      <td>${formatDate(patient.nextAppointment)}</td>
-      <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-      <td class="action-cell">${actions}</td>
-    `;
-    tbody.appendChild(row);
-  });
-}
-
-// 2️⃣ Event delegation (single listener for tbody)
-document.querySelector('.patients-table tbody').addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
-
-  const patientId = btn.dataset.id;
-  if (!patientId) return;
-
-  if (btn.classList.contains('btn-view')) viewPatient(patientId);
-  else if (btn.classList.contains('btn-edit')) editPatient(patientId);
-  else if (btn.classList.contains('btn-delete')) {
-    if (confirm('Are you sure you want to delete this patient?')) {
-      deletePatient(patientId).then(() => {
-        filteredPatients = filteredPatients.filter(p => p.patientId !== patientId);
-        renderPatients();
-      });
-    }
-  } else if (btn.classList.contains('btn-prescription')) handlePrescription(patientId);
-  else if (btn.classList.contains('btn-billing')) handleBilling(patientId);
-});
-
-// 3️⃣ Optional: keep attachRowListeners for clarity or legacy code
-function attachRowListeners() {
-  // now not strictly necessary because of event delegation
-}
-
-
-// 7️⃣ Main init call
-document.addEventListener('DOMContentLoaded', () => {
-  loadPatients();
-  setupEventListeners(); // ✅ now defined
-  applyRBAC();
-});
-
-// --------------------------
-// RBAC Configuration
-// --------------------------
-const rbacConfig = {
-  doctor: {
-    can: ['view_patients','add_patients','edit_patients','view_prescriptions','edit_prescriptions','view_billing','export_data','manage_all']
-  },
-  nurse: {
-    can: ['view_patients','add_patients','edit_patients','view_prescriptions']
-  },
-  admin: {
-    can: ['view_patients','add_patients','edit_patients','delete_patients','view_prescriptions','view_billing','export_data','manage_all']
-  },
-  pharmacist: {
-    can: ['view_patients','view_prescriptions','edit_prescriptions']
-  }
-};
-
-
-// --------------------------
-// Utilities
-// --------------------------
-//const checkPermission = (action) => rbacConfig[userRole]?.can.includes(action) || false;
-// Updated permission checker
-const checkPermission = (action) => {
-  if (!currentUser || !currentUser.role) return false;
-  const rolePermissions = rbacConfig[currentUser.role]?.can || [];
-  return rolePermissions.includes(action);
-};
-
-const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  return isNaN(date) ? 'N/A' : date.toLocaleDateString('en-US', { day:'2-digit', month:'short', year:'numeric' });
-};
-
-const calculateAge = (dob) => {
-  if (!dob) return 'N/A';
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-};
-
-const generatePatientId = () => {
-  const numericIds = allPatients.map(p => {
-    const match = (p.id || p._id || "").match(/\d+$/);
-    return match ? parseInt(match[0], 10) : null;
-  }).filter(n => n !== null);
-  const maxId = numericIds.length ? Math.max(...numericIds) : 0;
-  return `PAT${String(maxId + 1).padStart(4, '0')}`;
-};
-
-//const normalizeId = (patient) => patient._id;
-//const normalizeId = (patient) => patient.patientId;
-
-//const displayPatientId = (patient) => patient.patientId || `PAT${String(patient._id).slice(-4).toUpperCase()}`;
-
-// --------------------------
-// Initialization
-// --------------------------
-
-
-// --------------------------
-// Fetch & Render
-// --------------------------
-const loadPatients = async (page = currentPage) => {
-  // Read filters and search inputs safely
-  const searchText = document.getElementById("search-name")?.value.trim().toLowerCase() || "";
-  const diagnosisFilter = document.getElementById("filter-diagnosis")?.value || "";
-  const statusFilter = document.getElementById("filter-status")?.value || "";
-
-  // Keep current sort state defaults
-  const sortColumn = currentSort?.column || "createdAt";
-  const sortDirection = currentSort?.direction || "desc";
-
-  // Query parameters
-  const query = new URLSearchParams({
-    search: searchText,
-    diagnosis: diagnosisFilter,
-    status: statusFilter,
-    sortColumn,
-    sortDirection,
-    page,
-    limit: patientsPerPage
-  });
-
-  try {
-    const res = await fetch(`${API_BASE}/api/patients?${query.toString()}`);
-    if (!res.ok) throw new Error(`Failed to fetch patients: ${res.status}`);
-
-    const data = await res.json();
-
-    // Handle flexible backend responses
-    allPatients = Array.isArray(data.patients) ? data.patients : [];
-    filteredPatients = [...allPatients];
-    totalCount = data.totalCount ?? allPatients.length;
-    currentPage = data.page ?? page;
-
-
-    // Render results
-    renderPatients();
-    renderPagination(currentPage, data.totalPages ?? 1, totalCount);
-  } catch (err) {
-    console.error("Error loading patients:", err);
-
-    // Safe fallback (empty table)
-    allPatients = [];
-    filteredPatients = [];
-    totalCount = 0;
-
-    renderPatients();
-    renderPagination(1, 1, 0);
-    showAlert("⚠️ Failed to load patients. Please try again later.", "error");
-  }
-};
-// Debug RBAC for current user
-function debugPermissions() {
-  if (!currentUser || !currentUser.role) {
-    console.warn("No current user or role set!");
-    return;
-  }
-
-  const role = currentUser.role.toLowerCase(); // normalize
-  const perms = rbacConfig[role]?.can || [];
-  
-  console.log(`Current user role: ${currentUser.role}`);
-  console.log("Permissions available:", perms);
-
-  // Quick check if delete_patients is allowed
-  if (perms.includes('delete_patients')) {
-    console.log("✅ User CAN delete patients (trash icon should show)");
-  } else {
-    console.log("❌ User CANNOT delete patients (trash icon hidden)");
+    showAlert("Failed to delete patient.", "error");
   }
 }
 
-// Call it right after currentUser is set
-debugPermissions();
-
-// --------------------------
-// Render Patients Table
-// --------------------------
-
-
-
-
-// --------------------------
-// Pagination
-// --------------------------
-const renderPagination = (current, totalPages, totalCount) => {
-  const container = document.getElementById("pagination");
-  const info = document.getElementById("pagination-info");
-  info.textContent = totalCount > 0
-    ? `Showing ${(current-1)*patientsPerPage+1}-${Math.min(current*patientsPerPage,totalCount)} of ${totalCount} patients`
-    : "No patients found";
-
-  if (totalPages <= 1) { container.innerHTML = ''; return; }
-
-  const maxVisible = 5;
-  let start = Math.max(1, current - Math.floor(maxVisible / 2));
-  let end = Math.min(totalPages, start + maxVisible - 1);
-  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
-
-  let html = `<button class="pagination-btn prev-btn ${current===1?'disabled':''}">&laquo; Previous</button>`;
-  if (start > 1) html += `<button class="pagination-btn page-btn" data-page="1">1</button><span class="ellipsis">...</span>`;
-  for (let i = start; i <= end; i++) html += `<button class="pagination-btn page-btn ${i===current?'active':''}" data-page="${i}">${i}</button>`;
-  if (end < totalPages) html += `<span class="ellipsis">...</span><button class="pagination-btn page-btn" data-page="${totalPages}">${totalPages}</button>`;
-  html += `<button class="pagination-btn next-btn ${current===totalPages?'disabled':''}">Next &raquo;</button>`;
-
-  container.innerHTML = html;
-
-  container.querySelector(".prev-btn")?.addEventListener("click", () => { if (current > 1) loadPatients(current - 1); });
-  container.querySelectorAll(".page-btn").forEach(btn => btn.addEventListener("click", () => { const p = parseInt(btn.dataset.page, 10); if (p !== current) loadPatients(p); }));
-  container.querySelector(".next-btn")?.addEventListener("click", () => { if (current < totalPages) loadPatients(current + 1); });
-};
-
-// --------------------------
-// Search & Sort
-// --------------------------
-let searchTimeout;
-const handleSearch = () => {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => { currentPage = 1; loadPatients(); }, 300);
-};
-
-const applySort = (field, direction) => { currentSort = { column: field, direction }; loadPatients(currentPage); };
-
-const handleSort = (column) => {
-  const map = { 'Patient ID':'id','Name':'lastName','Age/Gender':'age','Diagnosis':'diagnosis','Stage':'stage','Doctor':'doctor','Next Appointment':'nextAppointment','Status':'status','Created At':'createdAt' };
-  const field = map[column]; if (!field) return;
-  const direction = currentSort.column === field && currentSort.direction === 'asc' ? 'desc' : 'asc';
-  applySort(field, direction);
-};
-
-const handleSortDropdown = (value) => {
-  const map = {
-    'Sort by: Newest First': { field: 'createdAt', direction: 'desc' },
-    'Sort by: Oldest First': { field: 'createdAt', direction: 'asc' },
-    'Sort by: Name A-Z': { field: 'lastName', direction: 'asc' },
-    'Sort by: Name Z-A': { field: 'lastName', direction: 'desc' },
-    'Sort by: Patient ID': { field: 'patientId', direction: 'asc' }
-  };
-
-  const sortConfig = map[value];
-  if (!sortConfig) return;
-
-  currentSort = { column: sortConfig.field, direction: sortConfig.direction };
-  loadPatients(1);
-};
-
-// --------------------------
-// Row actions
-// --------------------------
-/*const attachRowListeners = () => {
-  document.querySelectorAll('.btn-view').forEach(btn => btn.addEventListener('click', () => viewPatient(btn.dataset.id)));
-  document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', () => editPatient(btn.dataset.id)));
-  document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', () => deletePatient(btn.dataset.id)));
-  document.querySelectorAll('.btn-prescription').forEach(btn => btn.addEventListener('click', () => handlePrescription(btn.dataset.id)));
-  document.querySelectorAll('.btn-billing').forEach(btn => btn.addEventListener('click', () => handleBilling(btn.dataset.id)));
-};*/
-
-// --------------------------
-// Navigation
-// --------------------------
-const handlePrescription = (id) => window.location.href = `pharmacy.html?patientId=${id}`;
-const handleBilling = (id) => window.location.href = `invoice.html?patientId=${id}`;
-
-// --------------------------
-// Modal
-// --------------------------
-const openModal = () => {
-  // Just show the modal
-  document.getElementById('patientModal').style.display = 'block';
-};
-
-
-
-
-const closeModal = () => {
-  document.getElementById('patientModal').style.display = 'none';
-  resetForm();
-};
-
-const resetForm = () => {
-  // Clear hidden patient ID (for new entries)
-  document.getElementById("edit-patientId").value = "";
-
-  // Reset modal title
-  document.querySelector('.modal-title').textContent = 'Add New Patient';
-
-  // Reset tabs
-  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.getElementById('personal')?.classList.add('active');
-  document.querySelector('[onclick="openTab(event, \'personal\')"]')?.classList.add('active');
-
-  // Clear all input fields, selects, and textareas
-  document.querySelectorAll('#patientModal input, #patientModal select, #patientModal textarea')
-    .forEach(f => f.value = '');
-};
-
-
-const openTab = (evt, tabName) => {
-  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.getElementById(tabName)?.classList.add('active');
-  evt.currentTarget.classList.add('active');
-};
-
-// --------------------------
-// Save or Update Patient
-// --------------------------
-// Save patient
+// Save or update patient
 async function savePatient() {
   const patientId = document.getElementById("edit-patientId")?.value;
 
   const formData = {
-    patientId,
+    patientId: patientId || generatePatientId(),
     firstName: document.getElementById("first-name")?.value.trim(),
     lastName: document.getElementById("last-name")?.value.trim(),
     dob: document.getElementById("dob")?.value || null,
@@ -732,7 +569,7 @@ async function savePatient() {
     insuranceId: document.getElementById("insurance-id")?.value.trim(),
     coverage: document.getElementById("coverage")?.value.trim(),
     validUntil: document.getElementById("valid-until")?.value || null,
-    doctor: document.getElementById("doctor")?.value || null, // send _id
+    doctor: document.getElementById("doctor")?.value || null,
     status: document.getElementById("status")?.value || "active",
     nextAppointment: document.getElementById("next-appointment")?.value || null,
   };
@@ -774,24 +611,232 @@ async function savePatient() {
   }
 }
 
+// ==========================
+// Modal Functions
+// ==========================
 
+// Open modal for new patient
+function openAddPatientModal() {
+  resetForm();
+  document.querySelector('.modal-title').textContent = 'Add New Patient';
+  document.getElementById('savePatientBtn').textContent = 'Add Patient';
+  
+  // Load doctors when opening modal for new patient
+  loadStaffList().then(() => {
+    openModal();
+  });
+}
 
-// --------------------------
+// Open modal
+const openModal = () => {
+  document.getElementById('patientModal').style.display = 'block';
+};
 
-// --------------------------
-// RBAC
-// --------------------------
+// Close modal
+const closeModal = () => {
+  document.getElementById('patientModal').style.display = 'none';
+  resetForm();
+};
+
+// Reset form
+const resetForm = () => {
+  document.getElementById("edit-patientId").value = "";
+  document.querySelector('.modal-title').textContent = 'Add New Patient';
+  document.getElementById('savePatientBtn').textContent = 'Add Patient';
+
+  // Reset tabs
+  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('personal')?.classList.add('active');
+  document.querySelector('[onclick="openTab(event, \'personal\')"]')?.classList.add('active');
+
+  // Clear all input fields
+  document.querySelectorAll('#patientModal input, #patientModal select, #patientModal textarea')
+    .forEach(f => f.value = '');
+};
+
+// Tab navigation
+const openTab = (evt, tabName) => {
+  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(tabName)?.classList.add('active');
+  evt.currentTarget.classList.add('active');
+};
+
+// ==========================
+// Export Functions
+// ==========================
+
+// Export CSV
+function exportCSV() {
+  if (!filteredPatients.length) {
+    alert("No patients to export.");
+    return;
+  }
+
+  const headers = [
+    "Patient ID",
+    "Name",
+    "Age",
+    "Gender",
+    "Diagnosis",
+    "Stage",
+    "Doctor",
+    "Next Appointment",
+    "Status"
+  ];
+
+  const rows = filteredPatients.map(p => [
+    displayPatientId(p),
+    `${p.firstName} ${p.lastName}`,
+    calculateAge(p.dob),
+    p.gender || "N/A",
+    p.diagnosis || "N/A",
+    p.stage || "N/A",
+    p.doctor || "N/A",
+    formatDate(p.nextAppointment),
+    p.status || "N/A"
+  ]);
+
+  let csvContent =
+    headers.join(",") +
+    "\n" +
+    rows.map(r => r.map(value => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", "patients_export.csv");
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// Export PDF
+async function exportPDF() {
+  if (!filteredPatients.length) {
+    alert("No patients to export.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF("l", "pt", "a4");
+
+  doc.setFontSize(16);
+  doc.text("Patient List Report", 40, 40);
+  doc.setFontSize(10);
+  doc.text(`Generated on: ${new Date().toLocaleString()}`, 40, 60);
+
+  const headers = [
+    ["Patient ID", "Name", "Age", "Gender", "Diagnosis", "Stage", "Doctor", "Next Appointment", "Status"]
+  ];
+
+  const rows = filteredPatients.map(p => [
+    displayPatientId(p),
+    `${p.firstName} ${p.lastName}`,
+    calculateAge(p.dob),
+    p.gender || "N/A",
+    p.diagnosis || "N/A",
+    p.stage || "N/A",
+    p.doctor || "N/A",
+    formatDate(p.nextAppointment),
+    p.status || "N/A"
+  ]);
+
+  doc.autoTable({
+    head: headers,
+    body: rows,
+    startY: 80,
+    theme: "grid",
+    styles: { fontSize: 9, cellPadding: 4 },
+    headStyles: { fillColor: [40, 167, 69] },
+    alternateRowStyles: { fillColor: [245, 245, 245] }
+  });
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 80, doc.internal.pageSize.height - 30);
+  }
+
+  doc.save("patients_report.pdf");
+}
+
+// ==========================
+// Event Listeners Setup
+// ==========================
+
+function setupEventListeners() {
+  const searchInput = document.getElementById("search-name");
+  const diagnosisFilter = document.getElementById("filter-diagnosis");
+  const statusFilter = document.getElementById("filter-status");
+  const sortSelect = document.getElementById("sort-dropdown");
+
+  searchInput?.addEventListener("input", handleSearch);
+  diagnosisFilter?.addEventListener("change", loadPatients);
+  statusFilter?.addEventListener("change", loadPatients);
+  sortSelect?.addEventListener("change", (e) => handleSortDropdown(e.target.value));
+
+  // Export buttons
+  document.getElementById("export-csv")?.addEventListener("click", exportCSV);
+  document.getElementById("export-pdf")?.addEventListener("click", exportPDF);
+
+  // Modal buttons
+  document.getElementById("savePatientBtn")?.addEventListener("click", savePatient);
+  document.querySelector(".close")?.addEventListener("click", closeModal);
+
+  // Add patient button
+  document.getElementById('add-patient-btn')?.addEventListener('click', openAddPatientModal);
+}
+
+// Apply RBAC
 const applyRBAC = () => {
-  if (!checkPermission('add_patients')) document.getElementById('add-patient-btn')?.remove();
+  if (!checkPermission('add_patients')) {
+    document.getElementById('add-patient-btn')?.style.display = 'none';
+  }
   if (!checkPermission('export_data')) {
-    document.getElementById('export-csv')?.remove();
-    document.getElementById('export-pdf')?.remove();
+    document.getElementById('export-csv')?.style.display = 'none';
+    document.getElementById('export-pdf')?.style.display = 'none';
   }
 };
+
+// Logout handler
 document.addEventListener("click", (e) => {
   if (e.target.closest("#logoutBtn")) {
     localStorage.removeItem("token");
+    localStorage.removeItem("currentUser");
     sessionStorage.clear();
     window.location.href = "index.html";
   }
 });
+
+// ==========================
+// Main Initialization
+// ==========================
+
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('=== PATIENTS.JS INITIALIZED ===');
+  
+  initializeCurrentUser();
+  debugCurrentUser();
+  
+  loadPatients();
+  setupEventListeners();
+  applyRBAC();
+});
+
+// API test function for debugging
+async function debugLoadPatients() {
+  try {
+    const testRes = await fetch(`${API_BASE}/api/patients?limit=1`);
+    console.log('API Test Response:', {
+      status: testRes.status,
+      statusText: testRes.statusText,
+      body: await testRes.text()
+    });
+  } catch (err) {
+    console.error('API Connection Failed:', err);
+  }
+}
