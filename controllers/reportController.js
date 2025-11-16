@@ -1,9 +1,8 @@
-// controllers/reportController.js
 import Report from "../models/Report.js";
 import Invoice from "../models/Invoice.js";
 import Patient from "../models/Patient.js";
 import User from "../models/Staff.js";
-import Dispense from "../models/Dispense.js"; // ✅ Added
+import Dispense from "../models/Dispense.js";
 import { Parser as Json2CsvParser } from "json2csv";
 
 // =========================
@@ -62,29 +61,16 @@ export const getReports = async (req, res) => {
 export const generateReport = async (req, res) => {
   try {
     const { name, type, dateRange } = req.body;
-
-    if (!name || !type)
-      return res.status(400).json({ message: "Name and type are required" });
+    if (!name || !type) return res.status(400).json({ message: "Name and type are required" });
 
     let snapshot = { summary: {}, details: [] };
 
-    // -----------------------------
-    // Billing report
-    // -----------------------------
     if (type === "billing") {
       const invoices = await Invoice.find().populate("patientId", "name");
-
       const total = invoices.reduce((s, i) => s + (i.amount || 0), 0);
-      const paid = invoices
-        .filter(i => i.status === "paid")
-        .reduce((s, i) => s + (i.amount || 0), 0);
+      const paid = invoices.filter(i => i.status === "paid").reduce((s, i) => s + (i.amount || 0), 0);
 
-      snapshot.summary = {
-        totalInvoices: invoices.length,
-        total,
-        paid,
-        pending: total - paid,
-      };
+      snapshot.summary = { totalInvoices: invoices.length, total, paid, pending: total - paid };
       snapshot.details = invoices.map(i => ({
         id: i._id.toString(),
         patient: i.patientId?.name || "Unknown",
@@ -93,46 +79,24 @@ export const generateReport = async (req, res) => {
       }));
     }
 
-    // -----------------------------
-    // Patient report
-    // -----------------------------
     if (type === "patient") {
       const patients = await Patient.find();
       snapshot.summary = { totalPatients: patients.length };
-      snapshot.details = patients.map(p => ({
-        id: p._id.toString(),
-        name: p.name,
-        age: p.age,
-      }));
+      snapshot.details = patients.map(p => ({ id: p._id.toString(), name: p.name, age: p.age }));
     }
 
-    // -----------------------------
-    // Staff report
-    // -----------------------------
     if (type === "staff") {
       const users = await User.find();
       snapshot.summary = { totalStaff: users.length };
-      snapshot.details = users.map(u => ({
-        id: u._id.toString(),
-        name: u.name,
-        role: u.role,
-      }));
+      snapshot.details = users.map(u => ({ id: u._id.toString(), name: u.name, role: u.role }));
     }
 
-    // -----------------------------
-    // Pharmacy Dispense report ✅
-    // -----------------------------
     if (type === "dispense") {
       const dispenses = await Dispense.find().populate("dispensedBy", "name role");
-
       const totalUnits = dispenses.reduce((s, d) => s + (d.quantity || 0), 0);
       const uniqueMeds = new Set(dispenses.map(d => d.name)).size;
 
-      snapshot.summary = {
-        totalTransactions: dispenses.length,
-        totalUnits,
-        uniqueMedicines: uniqueMeds,
-      };
+      snapshot.summary = { totalTransactions: dispenses.length, totalUnits, uniqueMedicines: uniqueMeds };
       snapshot.details = dispenses.map(d => ({
         id: d._id.toString(),
         medicine: d.name,
@@ -144,31 +108,20 @@ export const generateReport = async (req, res) => {
       }));
     }
 
-    // -----------------------------
-    // Temporary author fallback
-    // -----------------------------
-    const tempAuthorId = "64d9f1a2b3c4d5e6f7a8b9c0"; // TODO: replace with real Staff _id
+    const tempAuthorId = "64d9f1a2b3c4d5e6f7a8b9c0"; // Replace with real Staff _id
 
-    const report = await Report.create({
-      name,
-      type,
-      dateRange,
-      author: tempAuthorId,
-      snapshot,
-    });
-
+    const report = await Report.create({ name, type, dateRange, author: tempAuthorId, snapshot });
     await report.populate("author", "name email role");
 
-    const obj = report.toObject();
     res.status(201).json({
-      id: obj._id.toString(),
-      name: obj.name,
-      type: obj.type,
-      dateRange: obj.dateRange,
-      generatedAt: obj.generatedAt,
-      author: obj.author?.name || "Unknown",
-      snapshot: obj.snapshot,
-      relatedRecords: obj.relatedRecords,
+      id: report._id.toString(),
+      name: report.name,
+      type: report.type,
+      dateRange: report.dateRange,
+      generatedAt: report.generatedAt,
+      author: report.author?.name || "Unknown",
+      snapshot: report.snapshot,
+      relatedRecords: report.relatedRecords,
     });
   } catch (err) {
     console.error("❌ generateReport error:", err);
@@ -177,7 +130,79 @@ export const generateReport = async (req, res) => {
 };
 
 // =========================
-// @desc   Export all reports as CSV
+// @desc   Get single report
+// @route  GET /api/reports/:id
+// =========================
+export const getReportById = async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id).populate("author", "name email role");
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    res.json({
+      id: report._id.toString(),
+      name: report.name,
+      type: report.type,
+      dateRange: report.dateRange,
+      generatedAt: report.generatedAt,
+      author: report.author?.name || "Unknown",
+      snapshot: report.snapshot,
+      relatedRecords: report.relatedRecords,
+    });
+  } catch (err) {
+    console.error("❌ getReportById error:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// =========================
+// @desc   Update a report
+// @route  PUT /api/reports/:id
+// =========================
+export const updateReport = async (req, res) => {
+  try {
+    const { name, type, dateRange } = req.body;
+    const report = await Report.findByIdAndUpdate(
+      req.params.id,
+      { name, type, dateRange },
+      { new: true }
+    ).populate("author", "name email role");
+
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    res.json({
+      id: report._id.toString(),
+      name: report.name,
+      type: report.type,
+      dateRange: report.dateRange,
+      generatedAt: report.generatedAt,
+      author: report.author?.name || "Unknown",
+      snapshot: report.snapshot,
+      relatedRecords: report.relatedRecords,
+    });
+  } catch (err) {
+    console.error("❌ updateReport error:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// =========================
+// @desc   Delete a report
+// @route  DELETE /api/reports/:id
+// =========================
+export const deleteReport = async (req, res) => {
+  try {
+    const report = await Report.findByIdAndDelete(req.params.id);
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    res.json({ message: "Report deleted successfully" });
+  } catch (err) {
+    console.error("❌ deleteReport error:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// =========================
+// @desc   Export all reports CSV
 // @route  GET /api/reports/export
 // =========================
 export const exportReports = async (req, res) => {
@@ -202,9 +227,7 @@ export const exportReports = async (req, res) => {
     const csv = parser.parse(normalizedReports);
 
     res.header("Content-Type", "text/csv");
-    res.attachment(
-      `${category || "reports"}_${new Date().toISOString().slice(0, 10)}.csv`
-    );
+    res.attachment(`${category || "reports"}_${new Date().toISOString().slice(0, 10)}.csv`);
     res.send(csv);
   } catch (err) {
     console.error("❌ exportReports error:", err);
@@ -213,44 +236,12 @@ export const exportReports = async (req, res) => {
 };
 
 // =========================
-// @desc   Get a single report
-// @route  GET /api/reports/:id
-// =========================
-export const getReportById = async (req, res) => {
-  try {
-    const report = await Report.findById(req.params.id).populate(
-      "author",
-      "name email role"
-    );
-    if (!report) return res.status(404).json({ message: "Report not found" });
-
-    const obj = report.toObject();
-    res.json({
-      id: obj._id.toString(),
-      name: obj.name,
-      type: obj.type,
-      dateRange: obj.dateRange,
-      generatedAt: obj.generatedAt,
-      author: obj.author?.name || "Unknown",
-      snapshot: obj.snapshot,
-      relatedRecords: obj.relatedRecords,
-    });
-  } catch (err) {
-    console.error("❌ getReportById error:", err);
-    res.status(500).json({ message: "Server Error" });
-  }
-};
-
-// =========================
-// @desc   Export a single report as CSV
+// @desc   Export single report CSV
 // @route  GET /api/reports/:id/export
 // =========================
 export const exportReportById = async (req, res) => {
   try {
-    const report = await Report.findById(req.params.id).populate(
-      "author",
-      "name email"
-    );
+    const report = await Report.findById(req.params.id).populate("author", "name email");
     if (!report) return res.status(404).json({ message: "Report not found" });
 
     const meta = {
@@ -263,33 +254,22 @@ export const exportReportById = async (req, res) => {
     };
 
     const summaryCsv = report.snapshot?.summary
-      ? new Json2CsvParser({
-          fields: Object.keys(report.snapshot.summary),
-        }).parse([report.snapshot.summary])
+      ? new Json2CsvParser({ fields: Object.keys(report.snapshot.summary) }).parse([report.snapshot.summary])
       : "No summary available";
 
     const detailsCsv =
-      Array.isArray(report.snapshot?.details) &&
-      report.snapshot.details.length > 0
-        ? new Json2CsvParser({
-            fields: Object.keys(report.snapshot.details[0]),
-          }).parse(report.snapshot.details)
+      Array.isArray(report.snapshot?.details) && report.snapshot.details.length > 0
+        ? new Json2CsvParser({ fields: Object.keys(report.snapshot.details[0]) }).parse(report.snapshot.details)
         : "No details available";
 
     let finalCsv = "=== Report Metadata ===\n";
-    finalCsv += Object.entries(meta)
-      .map(([k, v]) => `${k},${v}`)
-      .join("\n");
+    finalCsv += Object.entries(meta).map(([k, v]) => `${k},${v}`).join("\n");
     finalCsv += "\n\n=== Report Summary ===\n" + summaryCsv;
     finalCsv += "\n\n=== Report Details ===\n" + detailsCsv;
 
-    const safeName = report.name
-      .replace(/\s+/g, "_")
-      .replace(/[^\w\-]/g, "");
+    const safeName = report.name.replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
     res.header("Content-Type", "text/csv");
-    res.attachment(
-      `${safeName}_${new Date().toISOString().slice(0, 10)}.csv`
-    );
+    res.attachment(`${safeName}_${new Date().toISOString().slice(0, 10)}.csv`);
     res.send(finalCsv);
   } catch (err) {
     console.error("❌ exportReportById error:", err);

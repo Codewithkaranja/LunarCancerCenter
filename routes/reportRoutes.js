@@ -1,9 +1,10 @@
-// routes/reportRoutes.js
 import express from "express";
 import {
   getReports,
   getReportById,
   generateReport,
+  updateReport,
+  deleteReport,
   exportReports,
   exportReportById,
 } from "../controllers/reportController.js";
@@ -22,6 +23,12 @@ router.get("/:id", getReportById);
 
 // Generate new report
 router.post("/", generateReport);
+
+// Update a report
+router.put("/:id", updateReport);
+
+// Delete a report
+router.delete("/:id", deleteReport);
 
 // Export all reports as CSV
 router.get("/export", exportReports);
