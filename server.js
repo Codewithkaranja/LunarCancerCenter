@@ -42,16 +42,16 @@ app.use(express.json());
 const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:5500",
+  "http://127.0.0.1:5501",
+  "http://localhost:5501",
   "https://lunar-hmis-frontend.onrender.com"
 ];
+
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests without origin (Thunder Client, Postman, etc.)
       if (!origin) return callback(null, true);
-
-      // Check allowed origins
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       } else {
