@@ -8,6 +8,7 @@ export const getConsultations = async (req, res) => {
       .populate("patientId", "firstName lastName patientId")
       .populate("doctorId", "name role email")
       .sort({ date: -1 });
+
     res.status(200).json({ success: true, consultations });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -20,8 +21,10 @@ export const getConsultationById = async (req, res) => {
     const consultation = await Consultation.findById(req.params.id)
       .populate("patientId", "firstName lastName patientId")
       .populate("doctorId", "name role email");
+
     if (!consultation)
       return res.status(404).json({ success: false, message: "Consultation not found" });
+
     res.status(200).json({ success: true, consultation });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -31,11 +34,13 @@ export const getConsultationById = async (req, res) => {
 // CREATE new consultation
 export const createConsultation = async (req, res) => {
   try {
-    const consultation = new Consultation(req.body);
-    await consultation.save();
-    await consultation.populate("patientId", "firstName lastName patientId")
-                       .populate("doctorId", "name role email");
-    res.status(201).json({ success: true, consultation });
+    const consultation = await Consultation.create(req.body);
+
+    const populatedConsultation = await Consultation.findById(consultation._id)
+      .populate("patientId", "firstName lastName patientId")
+      .populate("doctorId", "name role email");
+
+    res.status(201).json({ success: true, consultation: populatedConsultation });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
@@ -44,12 +49,14 @@ export const createConsultation = async (req, res) => {
 // UPDATE consultation
 export const updateConsultation = async (req, res) => {
   try {
-    const consultation = await Consultation.findByIdAndUpdate(req.params.id, req.body, { new: true })
+    const updatedConsultation = await Consultation.findByIdAndUpdate(req.params.id, req.body, { new: true })
       .populate("patientId", "firstName lastName patientId")
       .populate("doctorId", "name role email");
-    if (!consultation)
+
+    if (!updatedConsultation)
       return res.status(404).json({ success: false, message: "Consultation not found" });
-    res.status(200).json({ success: true, message: "Consultation updated", consultation });
+
+    res.status(200).json({ success: true, message: "Consultation updated", consultation: updatedConsultation });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
@@ -59,8 +66,10 @@ export const updateConsultation = async (req, res) => {
 export const deleteConsultation = async (req, res) => {
   try {
     const consultation = await Consultation.findByIdAndDelete(req.params.id);
+
     if (!consultation)
       return res.status(404).json({ success: false, message: "Consultation not found" });
+
     res.status(200).json({ success: true, message: "Consultation deleted" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
