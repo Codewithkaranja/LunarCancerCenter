@@ -82,6 +82,13 @@ staffSchema.virtual("reports", {
   foreignField: "createdBy",
 });
 
+// ===== Virtual for invoices created by staff =====
+staffSchema.virtual("invoices", {
+  ref: "Invoice",           // Name of the Invoice model
+  localField: "_id",        // Staff _id
+  foreignField: "createdBy" // Field in Invoice referencing staff
+});
+
 // ===== Helper methods =====
 staffSchema.methods.canBeDoctor = function () {
   return this.role === "doctor";

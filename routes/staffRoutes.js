@@ -11,8 +11,15 @@ import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Protect all staff routes
-//router.use(protect);
+// ===== Permanent Health/Test Endpoint =====
+router.get("/health", async (req, res) => {
+  try {
+    res.status(200).json({ status: "ok", message: "Staff API is reachable ✅" });
+  } catch (error) {
+    console.error("Health check failed:", error);
+    res.status(500).json({ status: "error", message: "Staff API health check failed ❌" });
+  }
+});
 
 // ===== GET all staff =====
 // Optional query params: ?role=doctor&department=Cardiology
