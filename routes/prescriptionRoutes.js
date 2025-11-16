@@ -1,24 +1,40 @@
+// routes/prescriptionRoutes.js
 import express from "express";
 import {
   getPrescriptions,
   getPrescriptionById,
   createPrescription,
   dispensePrescriptionTransactional,
+  getPrescriptionsByPatient,
+  getPrescriptionSummary,
+  cancelPrescription,
 } from "../controllers/prescriptionController.js";
 
 const router = express.Router();
 
-// ✅ TEMPORARILY skip auth for testing
-// router.use(protect);
+// ==========================
+// PUBLIC ROUTES (no JWT needed)
+// ==========================
 
-// doctors/pharmacists/admin can view (role-limited)
+// Get all prescriptions (optionally filter by status)
 router.get("/", getPrescriptions);
+
+// Get prescription by ID
 router.get("/:id", getPrescriptionById);
 
-// create: doctors (or admin)
+// Create new prescription
 router.post("/", createPrescription);
 
-// dispense (transactional): pharmacists/admin
+// Dispense a prescription
 router.put("/:id/dispense", dispensePrescriptionTransactional);
+
+// Get prescriptions by patient
+router.get("/patient/:patientId", getPrescriptionsByPatient);
+
+// Get prescription summary
+router.get("/summary", getPrescriptionSummary);
+
+// Cancel a prescription
+router.patch("/:id/cancel", cancelPrescription);
 
 export default router;
