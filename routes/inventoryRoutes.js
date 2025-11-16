@@ -1,3 +1,6 @@
+// ================================
+// inventoryRoutes.js (Auth-Free)
+// ================================
 import express from "express";
 import {
   getAllInventory,
@@ -6,33 +9,38 @@ import {
   updateInventoryItem,
   deleteInventoryItem,
   restockInventoryItem,
-  consumeInventoryItem,   // ✅ new
+  consumeInventoryItem,
   getInventoryReports,
 } from "../controllers/inventoryController.js";
-import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.use(protect);
+// --------------------------------------------------
+// 🚀 ALL ROUTES ARE NOW PUBLIC FOR TESTING
+// --------------------------------------------------
 
-// -----------------------------
-// Public inventory retrieval (role-limited)
-// -----------------------------
-router.get("/", authorize("admin", "pharmacist", "cashier"), getAllInventory);
-router.get("/reports", authorize("admin", "pharmacist"), getInventoryReports);
-router.get("/:id", authorize("admin", "pharmacist", "cashier"), getInventoryById);
+// GET all inventory
+router.get("/", getAllInventory);
 
-// -----------------------------
-// Admin / inventory management
-// -----------------------------
-router.post("/", authorize("admin", "inventory"), addInventoryItem);
+// GET inventory reports
+router.get("/reports", getInventoryReports);
 
-// **Important:** custom routes first
-router.put("/:id/restock", authorize("admin", "inventory"), restockInventoryItem);
-router.put("/:id/consume", authorize("pharmacist"), consumeInventoryItem); // ✅ pharmacist only
+// GET single inventory item
+router.get("/:id", getInventoryById);
 
-// Generic update & delete
-router.put("/:id", authorize("admin", "inventory"), updateInventoryItem);
-router.delete("/:id", authorize("admin", "inventory"), deleteInventoryItem);
+// CREATE new inventory item
+router.post("/", addInventoryItem);
+
+// RESTOCK
+router.put("/:id/restock", restockInventoryItem);
+
+// CONSUME / DISPENSE
+router.put("/:id/consume", consumeInventoryItem);
+
+// UPDATE inventory item
+router.put("/:id", updateInventoryItem);
+
+// DELETE inventory item
+router.delete("/:id", deleteInventoryItem);
 
 export default router;

@@ -1,7 +1,3 @@
-// ================================
-// appointmentController.js (Production Ready, Polished)
-// ================================
-
 import mongoose from "mongoose";
 import Appointment from "../models/Appointment.js";
 import Patient from "../models/Patient.js";
@@ -46,8 +42,9 @@ export const getAppointmentsByPatient = async (req, res) => {
     if (!patientId)
       return res.status(400).json({ success: false, message: "Missing patient ID" });
 
+    // Look up patient by either Mongo _id or PATxxxx
     const patient = await Patient.findOne({
-      $or: [{ patientId }, { _id: patientId }],
+      $or: [{ _id: patientId }, { patientId }],
     });
 
     if (!patient)
@@ -93,41 +90,44 @@ export const getAppointmentById = async (req, res) => {
 // ================================
 export const createAppointment = async (req, res) => {
   try {
-    console.log("🩺 Incoming appointment payload:", req.body);
     const { patient, doctor, date, time } = req.body;
 
-    // Validate patient
-    if (!mongoose.Types.ObjectId.isValid(patient))
-      return res.status(400).json({ success: false, message: "Invalid patient ID format" });
+    // Accept both Mongo _id or PATxxxx for patient
+    let patientDoc;
+    if (mongoose.Types.ObjectId.isValid(patient)) {
+      patientDoc = await Patient.findById(patient);
+    } else {
+      patientDoc = await Patient.findOne({ patientId: patient });
+    }
 
-    const patientExists = await Patient.findById(patient);
-    if (!patientExists)
+    if (!patientDoc)
       return res.status(400).json({ success: false, message: "Patient not found" });
 
-    // Validate doctor (optional)
-    let doctorExists = null;
+    let doctorDoc = null;
     if (doctor) {
       if (!mongoose.Types.ObjectId.isValid(doctor))
-        return res.status(400).json({ success: false, message: "Invalid doctor ID format" });
-
-      doctorExists = await Staff.findById(doctor);
-      if (!doctorExists)
+        return res.status(400).json({ success: false, message: "Invalid doctor ID" });
+      doctorDoc = await Staff.findById(doctor);
+      if (!doctorDoc)
         return res.status(400).json({ success: false, message: "Doctor not found" });
     }
 
-    // Validate appointment date/time
     if (!date || !time)
       return res.status(400).json({ success: false, message: "Date and time are required" });
 
-    const appointment = new Appointment(req.body);
+    const appointment = new Appointment({
+      ...req.body,
+      patient: patientDoc._id,
+      doctor: doctorDoc ? doctorDoc._id : null,
+    });
+
     const saved = await appointment.save();
 
     const populated = await saved.populate([
       { path: "patient", select: "patientId firstName lastName" },
-      ...(doctorExists ? [{ path: "doctor", select: "firstName lastName role" }] : []),
+      ...(doctorDoc ? [{ path: "doctor", select: "firstName lastName role" }] : []),
     ]);
 
-    console.log("✅ Appointment created successfully:", populated._id);
     res.status(201).json({ success: true, appointment: populated });
   } catch (err) {
     handleError(res, err, "Error creating appointment");
@@ -145,24 +145,23 @@ export const updateAppointment = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ success: false, message: "Invalid appointment ID" });
 
-    // Validate doctor if provided
-    if (doctor && !mongoose.Types.ObjectId.isValid(doctor))
-      return res.status(400).json({ success: false, message: "Invalid doctor ID format" });
-
-    let doctorExists = null;
+    let doctorDoc = null;
     if (doctor) {
-      doctorExists = await Staff.findById(doctor);
-      if (!doctorExists)
+      if (!mongoose.Types.ObjectId.isValid(doctor))
+        return res.status(400).json({ success: false, message: "Invalid doctor ID" });
+      doctorDoc = await Staff.findById(doctor);
+      if (!doctorDoc)
         return res.status(400).json({ success: false, message: "Doctor not found" });
     }
 
     const updated = await Appointment.findByIdAndUpdate(id, req.body, { new: true });
+
     if (!updated)
       return res.status(404).json({ success: false, message: "Appointment not found" });
 
     const populated = await updated.populate([
       { path: "patient", select: "patientId firstName lastName" },
-      ...(doctorExists ? [{ path: "doctor", select: "firstName lastName role" }] : []),
+      ...(doctorDoc ? [{ path: "doctor", select: "firstName lastName role" }] : []),
     ]);
 
     res.status(200).json({ success: true, appointment: populated });
@@ -177,10 +176,12 @@ export const updateAppointment = async (req, res) => {
 export const deleteAppointment = async (req, res) => {
   try {
     const { id } = req.params;
+
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ success: false, message: "Invalid appointment ID" });
 
     const deleted = await Appointment.findByIdAndDelete(id);
+
     if (!deleted)
       return res.status(404).json({ success: false, message: "Appointment not found" });
 

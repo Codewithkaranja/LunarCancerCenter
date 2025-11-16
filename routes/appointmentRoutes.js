@@ -1,5 +1,5 @@
 // ================================
-// appointmentRoutes.js (Auth-Free Version)
+// appointmentRoutes.js (Auth-Free / Test-Friendly)
 // ================================
 import express from "express";
 import {
@@ -14,16 +14,17 @@ import {
 const router = express.Router();
 
 // ================================
-// 🩺 1. Appointment Routes (No Auth)
+// 🩺 Appointment Routes (No Auth)
 // ================================
 
 // GET all appointments
 router.get("/", getAllAppointments);
 
 // GET appointments for a specific patient
+// Works with either patientId (PATxxxx) or Mongo _id
 router.get("/patient/:patientId", getAppointmentsByPatient);
 
-// GET a single appointment by ID
+// GET a single appointment by its Mongo ID
 router.get("/:id", getAppointmentById);
 
 // CREATE a new appointment
