@@ -9,15 +9,15 @@ import { calculateStatus } from "./inventoryController.js";
 import Invoice from "../models/Invoice.js";
 
 // ==========================
-// GET /api/prescriptions?status=pending
+// GET /api/prescriptions?status=draft|submitted|dispensed|cancelled
 // ==========================
 export const getPrescriptions = asyncHandler(async (req, res) => {
   const { status } = req.query;
   const filter = status ? { status } : {};
 
   const prescriptions = await Prescription.find(filter)
-    .populate("patient", "firstName lastName phone")
-    .populate("doctor", "name specialization")
+    .populate("patientId", "firstName lastName phone")
+    .populate("doctorId", "name specialization")
     .sort({ createdAt: -1 });
 
   res.json(prescriptions);
@@ -28,8 +28,8 @@ export const getPrescriptions = asyncHandler(async (req, res) => {
 // ==========================
 export const getPrescriptionById = asyncHandler(async (req, res) => {
   const prescription = await Prescription.findById(req.params.id)
-    .populate("patient", "firstName lastName phone")
-    .populate("doctor", "name specialization");
+    .populate("patientId", "firstName lastName phone")
+    .populate("doctorId", "name specialization");
 
   if (!prescription) {
     res.status(404);
@@ -43,7 +43,7 @@ export const getPrescriptionById = asyncHandler(async (req, res) => {
 // POST /api/prescriptions
 // ==========================
 export const createPrescription = asyncHandler(async (req, res) => {
-  const { patientId, doctorId, medicines } = req.body;
+  const { patientId, doctorId, items } = req.body; // ✅ use items
 
   // Validate patient
   const patient = await Patient.findById(patientId);
@@ -52,31 +52,37 @@ export const createPrescription = asyncHandler(async (req, res) => {
     throw new Error("Patient not found");
   }
 
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    res.status(400);
+    throw new Error("Prescription must have at least one item");
+  }
+
   const payload = {
-    patient: patientId,
-    doctor: doctorId || req.user?._id,
-    medicines: medicines || [],
-    status: "pending",
-    date: new Date(),
+    patientId,
+    doctorId: doctorId || req.user?._id,
+    items,
+    status: "draft",      // valid enum
+    billStatus: "pending",
   };
 
   const created = await Prescription.create(payload);
+
   const populated = await Prescription.findById(created._id)
-    .populate("patient", "firstName lastName")
-    .populate("doctor", "name");
+    .populate("patientId", "firstName lastName phone")
+    .populate("doctorId", "name specialization");
 
   res.status(201).json(populated);
 });
 
 // ==========================
-// POST /api/prescriptions/:id/dispense
-// Dispense prescription + generate invoice
+// PUT /api/prescriptions/:id/dispense
 // ==========================
 export const dispensePrescriptionTransactional = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const prescription = await Prescription.findById(id).populate("patient", "firstName lastName");
+  const prescription = await Prescription.findById(id).populate("patientId", "firstName lastName");
+
   if (!prescription) throw new Error("Prescription not found");
-  if (!prescription.medicines?.length) throw new Error("Prescription has no medicines");
+  if (!prescription.items?.length) throw new Error("Prescription has no items");
 
   const session = await mongoose.startSession();
   try {
@@ -85,14 +91,14 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
       let totalAmount = 0;
       const invoiceItems = [];
 
-      for (const medEntry of prescription.medicines) {
-        const medId = medEntry.medicineId;
-        const qty = Number(medEntry.quantity);
-        if (!medId || !qty || qty <= 0) throw new Error("Invalid medicine entry");
+      for (const item of prescription.items) {
+        const medId = item.medication;
+        const qty = Number(item.quantity);
+        if (!medId || !qty || qty <= 0) throw new Error("Invalid prescription item");
 
         // Fetch medicine
         const medicine = await Inventory.findById(medId).session(session);
-        if (!medicine) throw new Error(`${medEntry.name || medId} not found`);
+        if (!medicine) throw new Error(`${item.name || medId} not found`);
         if (medicine.category !== "drug") throw new Error(`${medicine.name} is not a drug`);
         if (medicine.quantity < qty) throw new Error(`Insufficient stock for ${medicine.name}`);
 
@@ -109,7 +115,7 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
               name: medicine.name,
               quantity: qty,
               dispensedBy: req.user?._id || null,
-              patientId: prescription.patient._id,
+              patientId: prescription.patientId._id,
               date: new Date(),
             },
           ],
@@ -122,9 +128,9 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
           medicineId: medicine._id,
           name: medicine.name,
           quantity: qty,
-          price: medicine.sellingPrice,
+          price: medicine.unitPrice, // or sellingPrice if exists
         });
-        totalAmount += qty * medicine.sellingPrice;
+        totalAmount += qty * medicine.unitPrice;
       }
 
       // Mark prescription dispensed
@@ -136,7 +142,7 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
       const [invoice] = await Invoice.create(
         [
           {
-            patientId: prescription.patient._id,
+            patientId: prescription.patientId._id,
             items: invoiceItems,
             totalAmount,
             status: "unpaid",
@@ -148,7 +154,6 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
         { session }
       );
 
-      // Populate invoice patient
       const populatedInvoice = await Invoice.findById(invoice._id).populate(
         "patientId",
         "firstName lastName phone"
@@ -173,8 +178,8 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
 // ==========================
 export const getPrescriptionsByPatient = asyncHandler(async (req, res) => {
   const { patientId } = req.params;
-  const prescriptions = await Prescription.find({ patient: patientId })
-    .populate("doctor", "name specialization")
+  const prescriptions = await Prescription.find({ patientId })
+    .populate("doctorId", "name specialization")
     .sort({ createdAt: -1 });
 
   res.json(prescriptions);
@@ -184,7 +189,7 @@ export const getPrescriptionsByPatient = asyncHandler(async (req, res) => {
 // GET /api/prescriptions/summary
 // ==========================
 export const getPrescriptionSummary = asyncHandler(async (req, res) => {
-  const summary = await Prescription.aggregate([
+  const statusSummary = await Prescription.aggregate([
     { $group: { _id: "$status", count: { $sum: 1 } } },
   ]);
 
@@ -193,7 +198,7 @@ export const getPrescriptionSummary = asyncHandler(async (req, res) => {
   ]);
 
   res.json({
-    statusSummary: summary,
+    statusSummary,
     revenue: revenue[0]?.totalRevenue || 0,
   });
 });
