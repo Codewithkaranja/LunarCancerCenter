@@ -16,7 +16,7 @@ export const getPrescriptions = asyncHandler(async (req, res) => {
 
   const prescriptions = await Prescription.find(filter)
     .populate("patientId", "firstName lastName phone")
-    .populate("doctorId", "name specialization")
+    .populate("doctorId", "firstName lastName role")
     .sort({ createdAt: -1 });
 
   res.json(prescriptions);
@@ -28,7 +28,7 @@ export const getPrescriptions = asyncHandler(async (req, res) => {
 export const getPrescriptionById = asyncHandler(async (req, res) => {
   const prescription = await Prescription.findById(req.params.id)
     .populate("patientId", "firstName lastName phone")
-    .populate("doctorId", "name specialization");
+    .populate("doctorId", "firstName lastName role");
 
   if (!prescription) {
     res.status(404);
@@ -45,15 +45,9 @@ export const createPrescription = asyncHandler(async (req, res) => {
   const { patientId, doctorId, items, notes } = req.body;
 
   const patient = await Patient.findById(patientId);
-  if (!patient) {
-    res.status(404);
-    throw new Error("Patient not found");
-  }
-
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    res.status(400);
+  if (!patient) throw new Error("Patient not found");
+  if (!items || !Array.isArray(items) || items.length === 0)
     throw new Error("Prescription must have at least one item");
-  }
 
   const prescription = await Prescription.create({
     patientId,
@@ -66,7 +60,7 @@ export const createPrescription = asyncHandler(async (req, res) => {
 
   const populated = await Prescription.findById(prescription._id)
     .populate("patientId", "firstName lastName phone")
-    .populate("doctorId", "name specialization");
+    .populate("doctorId", "firstName lastName role");
 
   res.status(201).json(populated);
 });
@@ -79,15 +73,9 @@ export const updatePrescription = asyncHandler(async (req, res) => {
   const { items, status, billStatus, notes } = req.body;
 
   const prescription = await Prescription.findById(id);
-  if (!prescription) {
-    res.status(404);
-    throw new Error("Prescription not found");
-  }
-
-  if (prescription.status === "dispensed") {
-    res.status(400);
+  if (!prescription) throw new Error("Prescription not found");
+  if (prescription.status === "dispensed")
     throw new Error("Cannot update a dispensed prescription");
-  }
 
   if (items) prescription.items = items;
   if (status) prescription.status = status;
@@ -95,10 +83,9 @@ export const updatePrescription = asyncHandler(async (req, res) => {
   if (notes) prescription.notes = notes;
 
   const updated = await prescription.save();
-
   const populated = await Prescription.findById(updated._id)
     .populate("patientId", "firstName lastName phone")
-    .populate("doctorId", "name specialization");
+    .populate("doctorId", "firstName lastName role");
 
   res.json(populated);
 });
@@ -110,18 +97,30 @@ export const deletePrescription = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const prescription = await Prescription.findById(id);
 
-  if (!prescription) {
-    res.status(404);
-    throw new Error("Prescription not found");
-  }
-
-  if (prescription.status === "dispensed") {
-    res.status(400);
+  if (!prescription) throw new Error("Prescription not found");
+  if (prescription.status === "dispensed")
     throw new Error("Cannot delete a dispensed prescription");
-  }
 
   await prescription.deleteOne();
   res.json({ success: true, message: "Prescription deleted successfully" });
+});
+
+// ==========================
+// PATCH /api/prescriptions/:id/cancel
+// ==========================
+export const cancelPrescription = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const prescription = await Prescription.findById(id);
+
+  if (!prescription) throw new Error("Prescription not found");
+  if (prescription.status === "dispensed")
+    throw new Error("Cannot cancel a dispensed prescription");
+
+  prescription.status = "cancelled";
+  prescription.cancelledAt = new Date();
+  await prescription.save();
+
+  res.json({ message: "Prescription cancelled", prescription });
 });
 
 // ==========================
@@ -129,7 +128,10 @@ export const deletePrescription = asyncHandler(async (req, res) => {
 // ==========================
 export const dispensePrescriptionTransactional = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const prescription = await Prescription.findById(id).populate("patientId", "firstName lastName");
+  const prescription = await Prescription.findById(id).populate(
+    "patientId",
+    "firstName lastName"
+  );
 
   if (!prescription) throw new Error("Prescription not found");
   if (!prescription.items?.length) throw new Error("Prescription has no items");
@@ -149,7 +151,8 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
         const medicine = await Inventory.findById(medId).session(session);
         if (!medicine) throw new Error(`${item.name || medId} not found`);
         if (medicine.category !== "drug") throw new Error(`${medicine.name} is not a drug`);
-        if (medicine.quantity < qty) throw new Error(`Insufficient stock for ${medicine.name}`);
+        if (medicine.quantity < qty)
+          throw new Error(`Insufficient stock for ${medicine.name}`);
 
         medicine.quantity -= qty;
         medicine.status = calculateStatus(medicine);
@@ -223,7 +226,7 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
 export const getPrescriptionsByPatient = asyncHandler(async (req, res) => {
   const { patientId } = req.params;
   const prescriptions = await Prescription.find({ patientId })
-    .populate("doctorId", "name specialization")
+    .populate("doctorId", "firstName lastName role")
     .sort({ createdAt: -1 });
 
   res.json(prescriptions);
@@ -245,27 +248,4 @@ export const getPrescriptionSummary = asyncHandler(async (req, res) => {
     statusSummary,
     revenue: revenue[0]?.totalRevenue || 0,
   });
-});
-
-// ==========================
-// PATCH /api/prescriptions/:id/cancel
-// ==========================
-export const cancelPrescription = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const prescription = await Prescription.findById(id);
-
-  if (!prescription) {
-    res.status(404);
-    throw new Error("Prescription not found");
-  }
-  if (prescription.status === "dispensed") {
-    res.status(400);
-    throw new Error("Cannot cancel a dispensed prescription");
-  }
-
-  prescription.status = "cancelled";
-  prescription.cancelledAt = new Date();
-  await prescription.save();
-
-  res.json({ message: "Prescription cancelled", prescription });
 });
