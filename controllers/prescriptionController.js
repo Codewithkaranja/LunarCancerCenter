@@ -3,6 +3,7 @@ import Inventory from "../models/Inventory.js";
 import Dispense from "../models/Dispense.js";
 import Patient from "../models/Patient.js";
 import Invoice from "../models/Invoice.js";
+import Staff from "../models/Staff.js"; // ✅ Import Staff instead of User
 import asyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import { calculateStatus } from "./inventoryController.js";
@@ -16,7 +17,7 @@ export const getPrescriptions = asyncHandler(async (req, res) => {
 
   const prescriptions = await Prescription.find(filter)
     .populate("patientId", "firstName lastName phone")
-    .populate("doctorId", "firstName lastName role")
+    .populate("doctorId", "firstName lastName role department specialty") // ✅ Populate Staff fields
     .sort({ createdAt: -1 });
 
   res.json(prescriptions);
@@ -28,7 +29,7 @@ export const getPrescriptions = asyncHandler(async (req, res) => {
 export const getPrescriptionById = asyncHandler(async (req, res) => {
   const prescription = await Prescription.findById(req.params.id)
     .populate("patientId", "firstName lastName phone")
-    .populate("doctorId", "firstName lastName role");
+    .populate("doctorId", "firstName lastName role department specialty");
 
   if (!prescription) {
     res.status(404);
@@ -51,7 +52,7 @@ export const createPrescription = asyncHandler(async (req, res) => {
 
   const prescription = await Prescription.create({
     patientId,
-    doctorId: doctorId || req.user?._id || null,
+    doctorId: doctorId || req.user?._id || null, // should reference Staff
     items,
     notes: notes || "",
     status: "draft",
@@ -60,7 +61,7 @@ export const createPrescription = asyncHandler(async (req, res) => {
 
   const populated = await Prescription.findById(prescription._id)
     .populate("patientId", "firstName lastName phone")
-    .populate("doctorId", "firstName lastName role");
+    .populate("doctorId", "firstName lastName role department specialty");
 
   res.status(201).json(populated);
 });
@@ -85,7 +86,7 @@ export const updatePrescription = asyncHandler(async (req, res) => {
   const updated = await prescription.save();
   const populated = await Prescription.findById(updated._id)
     .populate("patientId", "firstName lastName phone")
-    .populate("doctorId", "firstName lastName role");
+    .populate("doctorId", "firstName lastName role department specialty");
 
   res.json(populated);
 });
@@ -226,7 +227,7 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
 export const getPrescriptionsByPatient = asyncHandler(async (req, res) => {
   const { patientId } = req.params;
   const prescriptions = await Prescription.find({ patientId })
-    .populate("doctorId", "firstName lastName role")
+    .populate("doctorId", "firstName lastName role department specialty")
     .sort({ createdAt: -1 });
 
   res.json(prescriptions);
