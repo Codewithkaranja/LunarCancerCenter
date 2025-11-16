@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 
+// ==========================
 // Schema for each prescription item
+// ==========================
 const prescriptionItemSchema = new mongoose.Schema(
   {
     medication: {
@@ -11,13 +13,19 @@ const prescriptionItemSchema = new mongoose.Schema(
     dosage: { type: String, trim: true },
     frequency: { type: String, trim: true },
     duration: { type: String, trim: true },
-    quantity: { type: Number, default: 1, min: [1, "Quantity must be at least 1"] },
+    quantity: {
+      type: Number,
+      default: 1,
+      min: [1, "Quantity must be at least 1"],
+    },
     instructions: { type: String, trim: true },
   },
-  { _id: false }
+  { _id: true } // Keep _id for each item for updates
 );
 
+// ==========================
 // Main prescription schema
+// ==========================
 const prescriptionSchema = new mongoose.Schema(
   {
     patientId: {
@@ -28,7 +36,7 @@ const prescriptionSchema = new mongoose.Schema(
     doctorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: false,
+      default: null,
     },
     items: {
       type: [prescriptionItemSchema],
@@ -44,6 +52,9 @@ const prescriptionSchema = new mongoose.Schema(
       enum: ["pending", "paid", "cancelled"],
       default: "pending",
     },
+    notes: { type: String, trim: true },
+    dispensedAt: { type: Date },
+    cancelledAt: { type: Date },
   },
   { timestamps: true }
 );

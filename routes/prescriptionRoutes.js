@@ -3,6 +3,8 @@ import {
   getPrescriptions,
   getPrescriptionById,
   createPrescription,
+  updatePrescription,
+  deletePrescription,
   dispensePrescriptionTransactional,
   getPrescriptionsByPatient,
   getPrescriptionSummary,
@@ -12,7 +14,7 @@ import {
 const router = express.Router();
 
 // ==========================
-// PUBLIC ROUTES (no JWT needed)
+// PRESCRIPTION ROUTES
 // ==========================
 
 // Get prescription summary
@@ -21,16 +23,22 @@ router.get("/summary", getPrescriptionSummary);
 // Get prescriptions by patient
 router.get("/patient/:patientId", getPrescriptionsByPatient);
 
-// Get prescription by ID
+// Get single prescription by ID
 router.get("/:id", getPrescriptionById);
 
-// Get all prescriptions (optionally filter by status)
+// Get all prescriptions (optional status filter)
 router.get("/", getPrescriptions);
 
 // Create new prescription
 router.post("/", createPrescription);
 
-// Dispense a prescription
+// Update a prescription
+router.put("/:id", updatePrescription);
+
+// Delete a prescription
+router.delete("/:id", deletePrescription);
+
+// Dispense a prescription (transactional)
 router.put("/:id/dispense", dispensePrescriptionTransactional);
 
 // Cancel a prescription

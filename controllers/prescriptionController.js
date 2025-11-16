@@ -1,12 +1,11 @@
-// controllers/prescriptionController.js
 import Prescription from "../models/Prescription.js";
 import Inventory from "../models/Inventory.js";
 import Dispense from "../models/Dispense.js";
 import Patient from "../models/Patient.js";
+import Invoice from "../models/Invoice.js";
 import asyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import { calculateStatus } from "./inventoryController.js";
-import Invoice from "../models/Invoice.js";
 
 // ==========================
 // GET /api/prescriptions?status=draft|submitted|dispensed|cancelled
@@ -43,9 +42,8 @@ export const getPrescriptionById = asyncHandler(async (req, res) => {
 // POST /api/prescriptions
 // ==========================
 export const createPrescription = asyncHandler(async (req, res) => {
-  const { patientId, doctorId, items } = req.body; // ✅ use items
+  const { patientId, doctorId, items, notes } = req.body;
 
-  // Validate patient
   const patient = await Patient.findById(patientId);
   if (!patient) {
     res.status(404);
@@ -57,21 +55,73 @@ export const createPrescription = asyncHandler(async (req, res) => {
     throw new Error("Prescription must have at least one item");
   }
 
-  const payload = {
+  const prescription = await Prescription.create({
     patientId,
-    doctorId: doctorId || req.user?._id,
+    doctorId: doctorId || req.user?._id || null,
     items,
-    status: "draft",      // valid enum
+    notes: notes || "",
+    status: "draft",
     billStatus: "pending",
-  };
+  });
 
-  const created = await Prescription.create(payload);
-
-  const populated = await Prescription.findById(created._id)
+  const populated = await Prescription.findById(prescription._id)
     .populate("patientId", "firstName lastName phone")
     .populate("doctorId", "name specialization");
 
   res.status(201).json(populated);
+});
+
+// ==========================
+// PUT /api/prescriptions/:id
+// ==========================
+export const updatePrescription = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { items, status, billStatus, notes } = req.body;
+
+  const prescription = await Prescription.findById(id);
+  if (!prescription) {
+    res.status(404);
+    throw new Error("Prescription not found");
+  }
+
+  if (prescription.status === "dispensed") {
+    res.status(400);
+    throw new Error("Cannot update a dispensed prescription");
+  }
+
+  if (items) prescription.items = items;
+  if (status) prescription.status = status;
+  if (billStatus) prescription.billStatus = billStatus;
+  if (notes) prescription.notes = notes;
+
+  const updated = await prescription.save();
+
+  const populated = await Prescription.findById(updated._id)
+    .populate("patientId", "firstName lastName phone")
+    .populate("doctorId", "name specialization");
+
+  res.json(populated);
+});
+
+// ==========================
+// DELETE /api/prescriptions/:id
+// ==========================
+export const deletePrescription = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const prescription = await Prescription.findById(id);
+
+  if (!prescription) {
+    res.status(404);
+    throw new Error("Prescription not found");
+  }
+
+  if (prescription.status === "dispensed") {
+    res.status(400);
+    throw new Error("Cannot delete a dispensed prescription");
+  }
+
+  await prescription.deleteOne();
+  res.json({ success: true, message: "Prescription deleted successfully" });
 });
 
 // ==========================
@@ -96,18 +146,15 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
         const qty = Number(item.quantity);
         if (!medId || !qty || qty <= 0) throw new Error("Invalid prescription item");
 
-        // Fetch medicine
         const medicine = await Inventory.findById(medId).session(session);
         if (!medicine) throw new Error(`${item.name || medId} not found`);
         if (medicine.category !== "drug") throw new Error(`${medicine.name} is not a drug`);
         if (medicine.quantity < qty) throw new Error(`Insufficient stock for ${medicine.name}`);
 
-        // Deduct stock
         medicine.quantity -= qty;
         medicine.status = calculateStatus(medicine);
         await medicine.save({ session });
 
-        // Create dispense log
         const [log] = await Dispense.create(
           [
             {
@@ -123,22 +170,19 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
         );
         dispenseLogs.push(log);
 
-        // Prepare invoice item
         invoiceItems.push({
           medicineId: medicine._id,
           name: medicine.name,
           quantity: qty,
-          price: medicine.unitPrice, // or sellingPrice if exists
+          price: medicine.unitPrice,
         });
         totalAmount += qty * medicine.unitPrice;
       }
 
-      // Mark prescription dispensed
       prescription.status = "dispensed";
       prescription.dispensedAt = new Date();
       await prescription.save({ session });
 
-      // Create invoice
       const [invoice] = await Invoice.create(
         [
           {
@@ -148,7 +192,7 @@ export const dispensePrescriptionTransactional = asyncHandler(async (req, res) =
             status: "unpaid",
             date: new Date(),
             relatedPrescriptionId: prescription._id,
-            relatedDispenseIds: dispenseLogs.map((d) => d._id),
+            relatedDispenseIds: dispenseLogs.map(d => d._id),
           },
         ],
         { session }
@@ -220,6 +264,7 @@ export const cancelPrescription = asyncHandler(async (req, res) => {
   }
 
   prescription.status = "cancelled";
+  prescription.cancelledAt = new Date();
   await prescription.save();
 
   res.json({ message: "Prescription cancelled", prescription });
