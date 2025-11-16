@@ -5,48 +5,28 @@ import {
   getReportById,
   generateReport,
   exportReports,
-  exportReportById, // ✅ single report export
+  exportReportById,
 } from "../controllers/reportController.js";
-import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// 🔐 Protect all report routes
-//router.use(protect);
+// -------------------------
+// PUBLIC ROUTES (no auth)
+// -------------------------
 
-// 📊 Get all reports (with filters/pagination)
-router.get(
-  "/",
-  authorize("admin", "nurse", "pharmacist", "cashier", "doctor"),
-  getReports
-);
+// Get all reports
+router.get("/", getReports);
 
-// 📌 Get a single report by ID
-router.get(
-  "/:id",
-  authorize("admin", "nurse", "pharmacist", "cashier", "doctor"),
-  getReportById
-);
+// Get single report by ID
+router.get("/:id", getReportById);
 
-// 🆕 Generate a new report
-router.post(
-  "/",
-  authorize("admin", "cashier"),
-  generateReport
-);
+// Generate new report
+router.post("/", generateReport);
 
-// ⬇️ Export all reports as CSV
-router.get(
-  "/export",
-  authorize("admin", "cashier"),
-  exportReports
-);
+// Export all reports as CSV
+router.get("/export", exportReports);
 
-// ⬇️ Export a single report as CSV
-router.get(
-  "/:id/export",
-  authorize("admin", "cashier"),
-  exportReportById
-);
+// Export single report as CSV
+router.get("/:id/export", exportReportById);
 
 export default router;
