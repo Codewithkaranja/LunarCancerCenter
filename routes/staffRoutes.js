@@ -6,12 +6,15 @@ import {
   updateStaff,
   deleteStaff,
 } from "../controllers/staffController.js";
-import { protect } from "../middleware/authMiddleware.js"; 
-// import { authorize } from "../middleware/authMiddleware.js"; // enable later
+import Staff from "../models/Staff.js"; // Required for /doctors endpoint
 
 const router = express.Router();
 
-// ===== Permanent Health/Test Endpoint =====
+/* ============================
+   STAFF ROUTES
+============================ */
+
+// ===== Health Check =====
 router.get("/health", async (req, res) => {
   try {
     res.status(200).json({ status: "ok", message: "Staff API is reachable ✅" });
@@ -21,36 +24,37 @@ router.get("/health", async (req, res) => {
   }
 });
 
-// ===== GET all staff =====
-// Optional query params: ?role=doctor&department=Cardiology
-router.get("/", (req, res, next) => {
-  console.log("GET /api/staff hit", req.user, "query:", req.query);
-  next();
-}, getAllStaff);
+// ===== GET only doctors =====
+// Used by Patient Module for doctor dropdown
+router.get("/doctors", async (req, res) => {
+  try {
+    const doctors = await Staff.find({ role: "doctor" })
+      .select("_id firstName lastName specialty department");
 
-// ===== GET single staff =====
-// Optional query param: ?populate=appointments,prescriptions
-router.get("/:id", (req, res, next) => {
-  console.log(`GET /api/staff/${req.params.id} hit`, req.user, "query:", req.query);
-  next();
-}, getStaffById);
+    res.status(200).json({ success: true, doctors });
+  } catch (error) {
+    console.error("Error fetching doctors:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
-// ===== CREATE new staff =====
-router.post("/", (req, res, next) => {
-  console.log("POST /api/staff hit", req.user, req.body);
-  next();
-}, createStaff);
+/* ============================
+   CRUD ROUTES
+============================ */
 
-// ===== UPDATE staff =====
-router.put("/:id", (req, res, next) => {
-  console.log(`PUT /api/staff/${req.params.id} hit`, req.user, req.body);
-  next();
-}, updateStaff);
+// GET all staff
+router.get("/", getAllStaff);
 
-// ===== DELETE staff =====
-router.delete("/:id", (req, res, next) => {
-  console.log(`DELETE /api/staff/${req.params.id} hit`, req.user);
-  next();
-}, deleteStaff);
+// GET single staff
+router.get("/:id", getStaffById);
+
+// CREATE staff
+router.post("/", createStaff);
+
+// UPDATE staff
+router.put("/:id", updateStaff);
+
+// DELETE staff
+router.delete("/:id", deleteStaff);
 
 export default router;
