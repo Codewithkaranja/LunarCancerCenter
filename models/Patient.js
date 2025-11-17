@@ -1,6 +1,5 @@
-// models/Patient.js
 import mongoose from "mongoose";
-import Counter from "./Counter.js"; // ✅ for patientId auto-increment
+import Counter from "./Counter.js"; // for patientId auto-increment
 
 const patientSchema = new mongoose.Schema(
   {
@@ -39,10 +38,10 @@ const patientSchema = new mongoose.Schema(
 
     nextAppointment: { type: Date },
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// ✅ Helper: calculate age
+// ===== Helper: calculate age =====
 const calculateAge = (dob) => {
   if (!dob) return null;
   const birthDate = new Date(dob);
@@ -51,13 +50,11 @@ const calculateAge = (dob) => {
   return Math.abs(ageDt.getUTCFullYear() - 1970);
 };
 
-// ✅ Pre-save hook
+// ===== Pre-save hook =====
 patientSchema.pre("save", async function (next) {
-  if (this.dob) {
-    this.age = calculateAge(this.dob);
-  }
+  if (this.dob) this.age = calculateAge(this.dob);
 
-  // Generate patientId with counter
+  // Auto-increment patientId
   if (!this.patientId) {
     const counter = await Counter.findOneAndUpdate(
       { name: "patientId" },
@@ -70,16 +67,14 @@ patientSchema.pre("save", async function (next) {
   next();
 });
 
-// ✅ Pre-update hook: recalc age if DOB changes
+// ===== Pre-update hook =====
 patientSchema.pre(["findOneAndUpdate", "updateOne"], function (next) {
   const update = this.getUpdate();
-  if (update.dob) {
-    update.age = calculateAge(update.dob);
-  }
+  if (update.dob) update.age = calculateAge(update.dob);
   next();
 });
 
-// 🔗 Virtuals for cross-linking
+// ===== Virtual relationships =====
 patientSchema.virtual("invoices", {
   ref: "Invoice",
   localField: "_id",
@@ -92,8 +87,10 @@ patientSchema.virtual("dispenses", {
   foreignField: "patientId",
 });
 
-// Ensure virtuals appear in JSON + objects
-patientSchema.set("toObject", { virtuals: true });
-patientSchema.set("toJSON", { virtuals: true });
+// ✅ Optional: populate doctor name easily
+patientSchema.virtual("doctorName").get(function () {
+  return this.doctor ? `${this.doctor.firstName} ${this.doctor.lastName || ""}` : "N/A";
+});
 
-export default mongoose.model("Patient", patientSchema);
+// ===== Export =====
+export default mongoose.models.Patient || mongoose.model("Patient", patientSchema);

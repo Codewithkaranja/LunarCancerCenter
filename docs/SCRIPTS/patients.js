@@ -58,8 +58,9 @@ function showSuccessAlert(message) {
   }, 3000);
 }
 function normalizeId(patient) {
-  return patient.patientId; // ✅ backend ID
+  return patient.patientId; // always use friendly PAT ID
 }
+
 
 function displayPatientId(patient) {
   return patient.patientId || `PAT${String(patient._id).slice(-4).toUpperCase()}`;
@@ -69,37 +70,43 @@ function displayPatientId(patient) {
 // Load doctors into dropdown
 async function loadStaffList(selectedDoctorId = null) {
   try {
-    const res = await fetch(`${API_BASE}/api/staff`);
-    console.log("Staff fetch status:", res.status, res.statusText); // debug HTTP response
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-
+    const res = await fetch(`${API_BASE}/api/staff/doctors`);
     const data = await res.json();
+
     if (!data.success) throw new Error("API responded with failure");
 
     const staffSelect = document.getElementById("doctor");
+
+    // Reset dropdown
     staffSelect.innerHTML = `<option value="">-- Select Doctor --</option>`;
 
-    const doctors = data.staff.filter(s => s.role === "doctor");
+    const doctors = data.doctors || [];
 
+    // Populate doctor list
     doctors.forEach(doc => {
       const option = document.createElement("option");
-      option.value = doc._id;             // backend expects _id
+      option.value = doc._id;
       option.textContent = `${doc.firstName} ${doc.lastName}`;
-      if (selectedDoctorId && doc._id === selectedDoctorId) {
-        option.selected = true;           // select current doctor
+
+      // Pre-select the doctor when editing
+      if (selectedDoctorId && selectedDoctorId === doc._id) {
+        option.selected = true;
       }
+
       staffSelect.appendChild(option);
     });
 
+    // If no doctors in DB
     if (doctors.length === 0) {
       staffSelect.innerHTML = `<option value="">No doctors available</option>`;
     }
 
   } catch (err) {
     console.error("❌ Error loading staff list:", err);
-    showAlert("⚠️ Failed to load staff members.", "error");
+    showAlert("⚠️ Failed to load doctor list.", "error");
   }
 }
+
 // --------------------------
 // Export CSV Function
 // --------------------------
@@ -264,13 +271,19 @@ async function editPatient(patientId) {
     const res = await fetch(`${API_BASE}/api/patients/${patientId}`);
     const data = await res.json();
 
-    if (!res.ok || !data.success) throw new Error(data.message || "Patient not found");
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Patient not found");
+    }
+
     const p = data.patient;
 
-    // Load doctors first, pre-select patient’s doctor
-    await loadStaffList(p.doctor || null);
+    // Extract doctor ID only (important!)
+    const doctorId = p.doctor ? p.doctor._id : null;
 
-    // Fill patient form
+    // Load doctor list and pre-select the assigned doctor
+    await loadStaffList(doctorId);
+
+    // Fill the patient form
     document.getElementById("edit-patientId").value = p.patientId || "";
     document.getElementById("firstName").value = p.firstName || "";
     document.getElementById("lastName").value = p.lastName || "";
@@ -295,17 +308,15 @@ async function editPatient(patientId) {
     document.querySelector(".modal-title").textContent = "Edit Patient";
     document.getElementById("savePatientBtn").textContent = "Update Patient";
 
-    // ✅ Open modal **after dropdown is ready**
-    //openModal();
-    // ✅ Open modal after doctors are loaded and pre-selected
-openModal(true, p.doctor || null);
-
+    // Open modal AFTER the doctor dropdown is populated
+    openModal(true, doctorId);
 
   } catch (err) {
     console.error("❌ Error loading patient for edit:", err);
     showAlert("Failed to load patient for editing.", "error");
   }
 }
+
 
 // DELETE Patient
 // ======================
@@ -345,12 +356,25 @@ function renderPatients() {
   }
 
   filteredPatients.forEach(patient => {
-    const backendId = patient.patientId || normalizeId(patient);
-    const displayId = patient.patientId || `PAT${String(patient._id).slice(-4).toUpperCase()}`;
+
+    // ✅ Always use friendly patientId (backend now supports this)
+    const backendId = patient.patientId;
+
+    // ✅ Display ID is the same now (clean UX)
+    const displayId = patient.patientId;
+
     const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Unnamed';
+
     const ageGender = patient.dob
       ? `${calculateAge(patient.dob)} / ${patient.gender || 'N/A'}`
       : patient.gender || 'N/A';
+
+    // ⭐ Correct doctor name
+    const doctorName = patient.doctor
+      ? (patient.doctor.fullName ||
+         `${patient.doctor.firstName} ${patient.doctor.lastName}`)
+      : 'N/A';
+
     const statusClass = `status-${patient.status || 'unknown'}`;
     const statusText = patient.status
       ? patient.status[0].toUpperCase() + patient.status.slice(1)
@@ -371,7 +395,7 @@ function renderPatients() {
       <td>${ageGender}</td>
       <td>${patient.diagnosis || 'N/A'}</td>
       <td>${patient.stage || 'N/A'}</td>
-      <td>${patient.doctor || 'N/A'}</td>
+      <td>${doctorName}</td>
       <td>${formatDate(patient.nextAppointment)}</td>
       <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       <td class="action-cell">${actions}</td>
@@ -379,6 +403,8 @@ function renderPatients() {
     tbody.appendChild(row);
   });
 }
+
+
 
 // 2️⃣ Event delegation (single listener for tbody)
 document.querySelector('.patients-table tbody').addEventListener('click', (e) => {

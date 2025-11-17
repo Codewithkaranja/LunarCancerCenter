@@ -6,30 +6,26 @@ import {
   updateStaff,
   deleteStaff,
 } from "../controllers/staffController.js";
-import Staff from "../models/Staff.js"; // Required for /doctors endpoint
+import Staff from "../models/Staff.js";
 
 const router = express.Router();
 
 /* ============================
-   STAFF ROUTES
+   HEALTH CHECK
 ============================ */
-
-// ===== Health Check =====
-router.get("/health", async (req, res) => {
-  try {
-    res.status(200).json({ status: "ok", message: "Staff API is reachable ✅" });
-  } catch (error) {
-    console.error("Health check failed:", error);
-    res.status(500).json({ status: "error", message: "Staff API health check failed ❌" });
-  }
+router.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", message: "Staff API is reachable ✅" });
 });
 
-// ===== GET only doctors =====
-// Used by Patient Module for doctor dropdown
+/* ============================
+   GET ONLY DOCTORS
+============================ */
+// For patient dropdowns
 router.get("/doctors", async (req, res) => {
   try {
     const doctors = await Staff.find({ role: "doctor" })
-      .select("_id firstName lastName specialty department");
+      .select("_id firstName lastName specialty department")
+      .sort({ lastName: 1, firstName: 1 }); // alphabetic
 
     res.status(200).json({ success: true, doctors });
   } catch (error) {
@@ -41,20 +37,10 @@ router.get("/doctors", async (req, res) => {
 /* ============================
    CRUD ROUTES
 ============================ */
-
-// GET all staff
 router.get("/", getAllStaff);
-
-// GET single staff
 router.get("/:id", getStaffById);
-
-// CREATE staff
 router.post("/", createStaff);
-
-// UPDATE staff
 router.put("/:id", updateStaff);
-
-// DELETE staff
 router.delete("/:id", deleteStaff);
 
 export default router;

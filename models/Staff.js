@@ -23,17 +23,16 @@ const staffSchema = new mongoose.Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// ===== Virtual for full name =====
+// ===== Virtuals =====
 staffSchema.virtual("fullName").get(function () {
   return `${this.firstName} ${this.lastName || ""}`.trim();
 });
 
-// ===== Virtual for contact info =====
 staffSchema.virtual("contact").get(function () {
   return `${this.email || ""} | ${this.phone || ""}`.trim();
 });
 
-// ===== Virtual relationships =====
+// Relationships
 staffSchema.virtual("appointments", {
   ref: "Appointment",
   localField: "_id",
@@ -70,10 +69,11 @@ staffSchema.virtual("inventoryChanges", {
   foreignField: "addedBy",
 });
 
+// ✅ Patient virtual synced with Patient.doctor
 staffSchema.virtual("patients", {
   ref: "Patient",
   localField: "_id",
-  foreignField: "primaryDoctor",
+  foreignField: "doctor",
 });
 
 staffSchema.virtual("reports", {
@@ -82,11 +82,10 @@ staffSchema.virtual("reports", {
   foreignField: "createdBy",
 });
 
-// ===== Virtual for invoices created by staff =====
 staffSchema.virtual("invoices", {
-  ref: "Invoice",           // Name of the Invoice model
-  localField: "_id",        // Staff _id
-  foreignField: "createdBy" // Field in Invoice referencing staff
+  ref: "Invoice",
+  localField: "_id",
+  foreignField: "createdBy",
 });
 
 // ===== Helper methods =====
@@ -102,5 +101,5 @@ staffSchema.methods.canBePharmacist = function () {
   return this.role === "pharmacist";
 };
 
-// ✅ FIXED EXPORT — prevents OverwriteModelError
+// ✅ Export
 export default mongoose.models.Staff || mongoose.model("Staff", staffSchema);
