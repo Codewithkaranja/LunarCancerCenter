@@ -1130,18 +1130,18 @@
           <div id="personal" class="tab-content active">
             <div class="form-grid">
               <div class="form-group">
-                <label for="first-name">First Name</label>
+                <label for="firstName">First Name</label>
                 <input
                   type="text"
-                  id="first-name"
+                  id="firstName"
                   placeholder="Enter first name"
                 />
               </div>
               <div class="form-group">
-                <label for="last-name">Last Name</label>
+                <label for="lastName">Last Name</label>
                 <input
                   type="text"
-                  id="last-name"
+                  id="lastName"
                   placeholder="Enter last name"
                 />
               </div>
@@ -1276,10 +1276,9 @@
             </div>
           </div>
           <div class="form-group">
-  <label for="doctor">Assigned Doctor</label>
-  <select id="doctor">
-    <option value="">Select Doctor</option>
-    <!-- Populated dynamically from Staff list -->
+  <label for="doctor">Assign Doctor</label>
+  <select id="doctor" required>
+    <option value="">-- Select a Doctor --</option>
   </select>
 </div>
 
@@ -1301,6 +1300,8 @@
           <div class="form-actions">
             <button class="btn" onclick="closeModal()">Cancel</button>
             <button class="btn btn-primary" id="savePatientBtn" onclick="savePatient()" class="btn-save">Save Patient</button>
+            <!--<button class="btn btn-primary btn-save" id="savePatientBtn" onclick="savePatient()">Save Patient</button>-->
+
           </div>
         </div>
       </div>
@@ -1329,12 +1330,14 @@
       </div>
     </footer>
 
-    <script src="SCRIPTS/patients.js">
-      document.getElementById("sort-select").addEventListener("change", function() {
+    <script src="SCRIPTS/patients.js"></script>
+<script>
+  document.getElementById("sort-dropdown").addEventListener("change", function() {
     const [colIndex, order] = this.value.split("-");
     currentSort = { column: parseInt(colIndex), asc: order === "asc" };
     sortTableByColumn(parseInt(colIndex));
   });
-    </script>
+</script>
+
   </body>
 </html>

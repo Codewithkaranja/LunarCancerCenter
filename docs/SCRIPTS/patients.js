@@ -21,13 +21,6 @@ let currentUser = { role: 'admin' }; // <- set this dynamically from your app/se
 
 //debugPermissions(); // ✅ Now safe
 
-
-// ==============================
-// patients.js (structure order)
-// ==============================
-
-
-
 // 2️⃣ Helper functions
 // Custom Alert Helper
 // --------------------------
@@ -107,11 +100,6 @@ async function loadStaffList(selectedDoctorId = null) {
     showAlert("⚠️ Failed to load staff members.", "error");
   }
 }
-
-
-
-
-
 // --------------------------
 // Export CSV Function
 // --------------------------
@@ -221,9 +209,6 @@ async function exportPDF() {
   doc.save("patients_report.pdf");
 }
 
-
-
-
 // 4️⃣ 🧩 Add your missing setupEventListeners here:
 // Event Listeners Setup
 // --------------------------
@@ -273,11 +258,6 @@ async function viewPatient(patientId) {
   }
 }
 
-// ======================
-// ==========================
-// Edit Patient (Load into Modal)
-// ==========================
-// Edit patient
 // Edit patient modal
 async function editPatient(patientId) {
   try {
@@ -292,8 +272,8 @@ async function editPatient(patientId) {
 
     // Fill patient form
     document.getElementById("edit-patientId").value = p.patientId || "";
-    document.getElementById("first-name").value = p.firstName || "";
-    document.getElementById("last-name").value = p.lastName || "";
+    document.getElementById("firstName").value = p.firstName || "";
+    document.getElementById("lastName").value = p.lastName || "";
     document.getElementById("dob").value = p.dob ? p.dob.split("T")[0] : "";
     document.getElementById("gender").value = p.gender || "";
     document.getElementById("phone").value = p.phone || "";
@@ -316,17 +296,16 @@ async function editPatient(patientId) {
     document.getElementById("savePatientBtn").textContent = "Update Patient";
 
     // ✅ Open modal **after dropdown is ready**
-    openModal();
+    //openModal();
+    // ✅ Open modal after doctors are loaded and pre-selected
+openModal(true, p.doctor || null);
+
 
   } catch (err) {
     console.error("❌ Error loading patient for edit:", err);
     showAlert("Failed to load patient for editing.", "error");
   }
 }
-
-
-
-
 
 // DELETE Patient
 // ======================
@@ -414,7 +393,8 @@ document.querySelector('.patients-table tbody').addEventListener('click', (e) =>
   else if (btn.classList.contains('btn-delete')) {
     if (confirm('Are you sure you want to delete this patient?')) {
       deletePatient(patientId).then(() => {
-        filteredPatients = filteredPatients.filter(p => p.patientId !== patientId);
+        filteredPatients = filteredPatients.filter(p => normalizeId(p) !== patientId);
+
         renderPatients();
       });
     }
@@ -453,10 +433,6 @@ const rbacConfig = {
   }
 };
 
-
-// --------------------------
-// Utilities
-// --------------------------
 //const checkPermission = (action) => rbacConfig[userRole]?.can.includes(action) || false;
 // Updated permission checker
 const checkPermission = (action) => {
@@ -489,17 +465,7 @@ const generatePatientId = () => {
   return `PAT${String(maxId + 1).padStart(4, '0')}`;
 };
 
-//const normalizeId = (patient) => patient._id;
-//const normalizeId = (patient) => patient.patientId;
 
-//const displayPatientId = (patient) => patient.patientId || `PAT${String(patient._id).slice(-4).toUpperCase()}`;
-
-// --------------------------
-// Initialization
-// --------------------------
-
-
-// --------------------------
 // Fetch & Render
 // --------------------------
 const loadPatients = async (page = currentPage) => {
@@ -576,14 +542,7 @@ function debugPermissions() {
 // Call it right after currentUser is set
 debugPermissions();
 
-// --------------------------
-// Render Patients Table
-// --------------------------
 
-
-
-
-// --------------------------
 // Pagination
 // --------------------------
 const renderPagination = (current, totalPages, totalCount) => {
@@ -613,7 +572,6 @@ const renderPagination = (current, totalPages, totalCount) => {
   container.querySelector(".next-btn")?.addEventListener("click", () => { if (current < totalPages) loadPatients(current + 1); });
 };
 
-// --------------------------
 // Search & Sort
 // --------------------------
 let searchTimeout;
@@ -647,18 +605,7 @@ const handleSortDropdown = (value) => {
   loadPatients(1);
 };
 
-// --------------------------
-// Row actions
-// --------------------------
-/*const attachRowListeners = () => {
-  document.querySelectorAll('.btn-view').forEach(btn => btn.addEventListener('click', () => viewPatient(btn.dataset.id)));
-  document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', () => editPatient(btn.dataset.id)));
-  document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', () => deletePatient(btn.dataset.id)));
-  document.querySelectorAll('.btn-prescription').forEach(btn => btn.addEventListener('click', () => handlePrescription(btn.dataset.id)));
-  document.querySelectorAll('.btn-billing').forEach(btn => btn.addEventListener('click', () => handleBilling(btn.dataset.id)));
-};*/
 
-// --------------------------
 // Navigation
 // --------------------------
 const handlePrescription = (id) => window.location.href = `pharmacy.html?patientId=${id}`;
@@ -667,13 +614,15 @@ const handleBilling = (id) => window.location.href = `invoice.html?patientId=${i
 // --------------------------
 // Modal
 // --------------------------
-const openModal = () => {
-  // Just show the modal
+const openModal = async (editing = false, selectedDoctorId = null) => {
   document.getElementById('patientModal').style.display = 'block';
+
+  // Load doctor dropdown
+  await loadStaffList(selectedDoctorId);
+
+  // Reset form only if adding a new patient
+  if (!editing) resetForm();
 };
-
-
-
 
 const closeModal = () => {
   document.getElementById('patientModal').style.display = 'none';
@@ -693,10 +642,14 @@ const resetForm = () => {
   document.getElementById('personal')?.classList.add('active');
   document.querySelector('[onclick="openTab(event, \'personal\')"]')?.classList.add('active');
 
-  // Clear all input fields, selects, and textareas
-  document.querySelectorAll('#patientModal input, #patientModal select, #patientModal textarea')
+  // Clear all input fields and textareas
+  document.querySelectorAll('#patientModal input, #patientModal textarea')
     .forEach(f => f.value = '');
+
+  // Reset all selects except doctor
+  document.querySelectorAll('#patientModal select:not(#doctor)').forEach(s => s.value = '');
 };
+
 
 
 const openTab = (evt, tabName) => {
@@ -715,8 +668,8 @@ async function savePatient() {
 
   const formData = {
     patientId,
-    firstName: document.getElementById("first-name")?.value.trim(),
-    lastName: document.getElementById("last-name")?.value.trim(),
+    firstName: document.getElementById("firstName")?.value.trim(),
+    lastName: document.getElementById("lastName")?.value.trim(),
     dob: document.getElementById("dob")?.value || null,
     gender: document.getElementById("gender")?.value,
     phone: document.getElementById("phone")?.value.trim(),
@@ -774,21 +727,28 @@ async function savePatient() {
   }
 }
 
-
-
-// --------------------------
-
-// --------------------------
 // RBAC
 // --------------------------
 const applyRBAC = () => {
-  if (!checkPermission('add_patients')) document.getElementById('add-patient-btn')?.remove();
+  const addBtn = document.getElementById('add-patient-btn');
+  const exportCSVBtn = document.getElementById('export-csv');
+  const exportPDFBtn = document.getElementById('export-pdf');
+
+  // Add Patient button
+  if (checkPermission('add_patients')) {
+    addBtn?.addEventListener('click', () => openModal(false));
+  } else {
+    addBtn?.remove();
+  }
+
+  // Export buttons
   if (!checkPermission('export_data')) {
-    document.getElementById('export-csv')?.remove();
-    document.getElementById('export-pdf')?.remove();
+    exportCSVBtn?.remove();
+    exportPDFBtn?.remove();
   }
 };
-document.addEventListener("click", (e) => {
+
+document.addEventListener("click", (e) => { 
   if (e.target.closest("#logoutBtn")) {
     localStorage.removeItem("token");
     sessionStorage.clear();
