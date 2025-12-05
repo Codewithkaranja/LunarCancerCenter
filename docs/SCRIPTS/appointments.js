@@ -126,6 +126,35 @@ function capitalizeFirstLetter(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+function updateBillingStatus(appointmentId, newStatus) {
+  const tr = document.querySelector(`tr[data-id="${appointmentId}"]`);
+  if (!tr) return;
+
+  // Format display
+  const displayBillingStatus = newStatus ? newStatus[0].toUpperCase() + newStatus.slice(1) : "Unpaid";
+
+  // Determine badge color
+  let billingClass = "";
+  switch ((newStatus || "unpaid").toLowerCase()) {
+    case "paid":
+      billingClass = "billing-paid"; // green
+      break;
+    case "pending":
+      billingClass = "billing-pending"; // yellow
+      break;
+    case "unpaid":
+    default:
+      billingClass = "billing-unpaid"; // red
+      break;
+  }
+
+  // Update the cell
+  const statusCell = tr.querySelector(".billing-status");
+  if (statusCell) {
+    statusCell.textContent = displayBillingStatus;
+    statusCell.className = `billing-status ${billingClass}`;
+  }
+}
 
 
 
@@ -245,7 +274,7 @@ paginated.forEach(a => {
   `;
 
   tbody.appendChild(tr);
-});
+ });
 
 
   // ----------------------------
@@ -253,6 +282,8 @@ paginated.forEach(a => {
   // ----------------------------
   renderPagination(filtered.length);
 }
+
+
 
 
 
