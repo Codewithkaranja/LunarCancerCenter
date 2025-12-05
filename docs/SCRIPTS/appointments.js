@@ -62,27 +62,23 @@ async function fetchAppointments(patientId = null) {
     let url = `${API_BASE}/api/appointments`;
     if (patientId) url += `/patient/${patientId}`;
 
-    // ✅ Get token from localStorage
-    const token = localStorage.getItem("token");
-
     const res = await fetch(url, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        // No Authorization header needed for now
       }
     });
 
     const data = await res.json();
     const appointmentsData = data.appointments || data;
 
-    // ✅ Preserve full doctor object instead of flattening it
     appointments = appointmentsData.map(a => ({
       id: a._id,
       patientId: a.patient?._id || "",
       patient: a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : "Unknown",
       doctorId: a.doctor?._id || "",
-      doctor: a.doctor || null, // keep the full doctor object here
+      doctor: a.doctor || null,
       date: a.date,
       time: a.time,
       department: a.department || a.doctor?.department || "",
@@ -99,13 +95,13 @@ async function fetchAppointments(patientId = null) {
       insuranceProvider: a.insuranceProvider || ""
     }));
 
-    console.log("✅ Appointments fetched:", appointments); // for debugging
     renderTable();
   } catch (err) {
     console.error("Error fetching appointments:", err);
     alert("Failed to load appointments. Please try again later.");
   }
 }
+
 
 
 // ==========================
@@ -372,86 +368,75 @@ async function populateDropdowns() {
 // ==========================
 document.addEventListener("DOMContentLoaded", () => {
   const saveBtn = document.querySelector("#appointmentModal .btn-primary");
-if (!saveBtn) return;
+  if (!saveBtn) return;
 
-saveBtn.addEventListener("click", async () => {
-  // --------------------------
-  // Build payload from form fields
-  // --------------------------
-  const payload = {
-    patient: document.getElementById("patient").value,
-    doctor: document.getElementById("doctor").value || null,
-    date: document.getElementById("appointment-date").value,
-    time: document.getElementById("appointment-time").value,
-    department: document.getElementById("department").value,
-    type: document.getElementById("appointment-type").value,
-    reason: document.getElementById("reason").value,
-    symptoms: document.getElementById("symptoms")?.value || "",
-    diagnosis: document.getElementById("diagnosis")?.value || "",
-    treatment: document.getElementById("treatment")?.value || "",
-    prescription: document.getElementById("prescription")?.value || "",
-    billingAmount: Number(document.getElementById("consultation-fee")?.value) || 0,
-    billingStatus: document.getElementById("billing-status")?.value || "unpaid",
-    paymentMethod: document.getElementById("payment-method")?.value || "",
-    insuranceProvider: document.getElementById("insurance-provider")?.value || ""
-  };
-
-  // --------------------------
-  // Validate required fields
-  // --------------------------
-  if (!payload.patient || !payload.date || !payload.time || !payload.department) {
-    alert("Please fill all required fields (Patient, Date, Time, Department)");
-    return;
-  }
-
-  console.log("🧾 Payload to be saved:", payload);
-
-  try {
+  saveBtn.addEventListener("click", async () => {
     // --------------------------
-    // JWT token from localStorage
+    // Build payload from form fields
     // --------------------------
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("User is not authenticated. Please log in.");
+    const payload = {
+      patient: document.getElementById("patient").value,
+      doctor: document.getElementById("doctor").value || null,
+      date: document.getElementById("appointment-date").value,
+      time: document.getElementById("appointment-time").value,
+      department: document.getElementById("department").value,
+      type: document.getElementById("appointment-type").value,
+      reason: document.getElementById("reason").value,
+      symptoms: document.getElementById("symptoms")?.value || "",
+      diagnosis: document.getElementById("diagnosis")?.value || "",
+      treatment: document.getElementById("treatment")?.value || "",
+      prescription: document.getElementById("prescription")?.value || "",
+      billingAmount: Number(document.getElementById("consultation-fee")?.value) || 0,
+      billingStatus: document.getElementById("billing-status")?.value || "unpaid",
+      paymentMethod: document.getElementById("payment-method")?.value || "",
+      insuranceProvider: document.getElementById("insurance-provider")?.value || ""
+    };
 
     // --------------------------
-    // Determine URL and method
+    // Validate required fields
     // --------------------------
-    const url = editId
-      ? `${API_BASE}/api/appointments/${editId}`
-      : `${API_BASE}/api/appointments`;
-    const method = editId ? "PUT" : "POST";
-
-    // --------------------------
-    // Send request with Authorization header
-    // --------------------------
-    const res = await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      console.error("❌ Server responded with error:", res.status, data);
-      throw new Error(data?.message || `Failed to save appointment (${res.status})`);
+    if (!payload.patient || !payload.date || !payload.time || !payload.department) {
+      alert("Please fill all required fields (Patient, Date, Time, Department)");
+      return;
     }
 
-    console.log("✅ Appointment saved successfully:", data);
+    console.log("🧾 Payload to be saved:", payload);
 
-    // Refresh table and close modal
-    await fetchAppointments();
-    closeModal();
-    editId = null;
-  } catch (err) {
-    console.error("💥 Failed to save appointment:", err);
-    alert("Error saving appointment: " + (err.message || "Unknown error"));
-  }
+    try {
+      // --------------------------
+      // Determine URL and method & send request
+      // --------------------------
+      const res = await fetch(editId
+        ? `${API_BASE}/api/appointments/${editId}`
+        : `${API_BASE}/api/appointments`, {
+          method: editId ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+            // No Authorization header for now
+          },
+          body: JSON.stringify(payload)
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        console.error("❌ Server responded with error:", res.status, data);
+        throw new Error(data?.message || `Failed to save appointment (${res.status})`);
+      }
+
+      console.log("✅ Appointment saved successfully:", data);
+
+      // Refresh table and close modal
+      await fetchAppointments();
+      closeModal();
+      editId = null;
+    } catch (err) {
+      console.error("💥 Failed to save appointment:", err);
+      alert("Error saving appointment: " + (err.message || "Unknown error"));
+    }
+  });
 });
-});
+
 
 
  // Close modal button
@@ -484,7 +469,7 @@ saveBtn.addEventListener("click", async () => {
   const app = appointments.find(a => a.id === id);
   if (!app) return;
 
-  // Log doctor info for debugging
+  // Safely extract doctor info for debugging
   const doctorName = app.doctor?.name || "Not assigned";
   const doctorRole = app.doctor?.role || "Not assigned";
   console.log(`Editing appointment — Doctor: ${doctorName}, Role: ${doctorRole}`);
@@ -494,11 +479,16 @@ saveBtn.addEventListener("click", async () => {
 
   // Preselect doctor dropdown safely
   const doctorSelect = document.getElementById("doctor");
-  if (doctorSelect) doctorSelect.value = app.doctor?._id || "";
+  if (doctorSelect) {
+    // Use doctor _id if available, else fallback to empty
+    doctorSelect.value = app.doctor?._id || "";
+  }
 
   // Preselect patient dropdown safely
   const patientSelect = document.getElementById("patient");
-  if (patientSelect) patientSelect.value = app.patientId || "";
+  if (patientSelect) {
+    patientSelect.value = app.patientId || "";
+  }
 
   // Track which appointment is being edited
   editId = id;
@@ -521,16 +511,14 @@ saveBtn.addEventListener("click", async () => {
 
   if (confirm(`Are you sure you want to cancel the appointment for ${app.patient} with ${doctorName} (${doctorRole})?`)) {
     try {
-      // ✅ Get JWT token from localStorage
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("User is not authenticated. Please log in.");
-
+      // --------------------------
       // Send request to update appointment status
+      // --------------------------
       const res = await fetch(`${API_BASE}/api/appointments/${id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}` // ✅ include token
+          "Content-Type": "application/json"
+          // No Authorization header for now
         },
         body: JSON.stringify({ status: "cancelled" }) // match your schema's enum
       });
@@ -549,6 +537,7 @@ saveBtn.addEventListener("click", async () => {
     }
   }
 }
+
 
 
 

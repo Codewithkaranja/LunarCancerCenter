@@ -1,5 +1,5 @@
 // ================================
-// appointmentRoutes.js (Auth-Free / Test-Friendly)
+// appointmentRoutes.js (TEMP: No Auth, Appointments Open)
 // ================================
 import express from "express";
 import {
@@ -11,29 +11,18 @@ import {
   deleteAppointment,
 } from "../controllers/appointmentController.js";
 
+import { protect, authorize } from "../middleware/authMiddleware.js"; // TEMP middleware
+
 const router = express.Router();
 
-// ================================
-// 🩺 Appointment Routes (No Auth)
-// ================================
-
-// GET all appointments
+// Public GET routes
 router.get("/", getAllAppointments);
-
-// GET appointments for a specific patient
-// Works with either patientId (PATxxxx) or Mongo _id
 router.get("/patient/:patientId", getAppointmentsByPatient);
-
-// GET a single appointment by its Mongo ID
 router.get("/:id", getAppointmentById);
 
-// CREATE a new appointment
-router.post("/", createAppointment);
-
-// UPDATE an existing appointment
-router.put("/:id", updateAppointment);
-
-// DELETE an appointment
-router.delete("/:id", deleteAppointment);
+// Public CREATE/UPDATE/DELETE (middleware allows all for now)
+router.post("/", protect, createAppointment);
+router.put("/:id", protect, updateAppointment);
+router.delete("/:id", protect, deleteAppointment);
 
 export default router;
