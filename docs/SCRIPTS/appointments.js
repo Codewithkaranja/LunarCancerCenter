@@ -64,46 +64,45 @@ async function fetchAppointments(patientId = null) {
 
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        // No Authorization header needed for now
-      }
+      headers: { "Content-Type": "application/json" }
     });
 
     const data = await res.json();
     const appointmentsData = data.appointments || data;
 
-   appointments = appointmentsData.map(a => ({
-  id: a._id,
-  patientId: a.patient?._id || "",
-  patient: a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : "Unknown",
-  doctorId: a.doctor?._id || "",
-  doctor: a.doctor
-    ? {
-        _id: a.doctor._id || "",
-        name: a.doctor.firstName && a.doctor.lastName 
-                ? `${a.doctor.firstName} ${a.doctor.lastName}` 
-                : a.doctor.name || "Unknown",
-        role: a.doctor.role || "Not assigned",
-        department: a.doctor.department || ""
-      }
-    : null,
-  date: a.date,
-  time: a.time,
-  department: a.department || a.doctor?.department || "",
-  status: a.status,
-  type: a.type || "",
-  reason: a.reason || "",
-  symptoms: a.symptoms || "",
-  diagnosis: a.diagnosis || "",
-  treatment: a.treatment || "",
-  prescription: a.prescription || "",
-  billingAmount: a.billingAmount || 0,
-  billingStatus: a.billingStatus || "unpaid",
-  paymentMethod: a.paymentMethod || "",
-  insuranceProvider: a.insuranceProvider || ""
-}));
-
+    appointments = appointmentsData.map(a => ({
+      id: a._id,
+      patientId: a.patient?._id || "",
+      patient: a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : "Unknown",
+      doctorId: a.doctor?._id || "",
+      doctor: a.doctor
+        ? {
+            _id: a.doctor._id || "",
+            name: a.doctor.firstName && a.doctor.lastName
+                    ? `${a.doctor.firstName} ${a.doctor.lastName}`
+                    : a.doctor.name || "Unknown",
+            role: a.doctor.role || "Not assigned",
+            department: a.doctor.department || ""
+          }
+        : null,
+      // -------------------------
+      // Date & time
+      date: a.date ? a.date.split('T')[0] : "",
+      time: a.time || "",
+      department: a.department || a.doctor?.department || a.patient?.department || "",
+      // -------------------------
+      status: a.status ? a.status.toLowerCase() : "unknown",
+      type: a.type || "",
+      reason: a.reason || "",
+      symptoms: a.symptoms || "",
+      diagnosis: a.diagnosis || "",
+      treatment: a.treatment || "",
+      prescription: a.prescription || "",
+      billingAmount: Number(a.billingAmount) || 0,
+      billingStatus: a.billingStatus || "unpaid",
+      paymentMethod: a.paymentMethod || "",
+      insuranceProvider: a.insuranceProvider || ""
+    }));
 
     renderTable();
   } catch (err) {
@@ -111,6 +110,14 @@ async function fetchAppointments(patientId = null) {
     alert("Failed to load appointments. Please try again later.");
   }
 }
+
+// -------------------------
+// Utility for rendering status nicely
+function capitalizeFirstLetter(str) {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 
 
 
@@ -129,7 +136,7 @@ function renderTable() {
   const filterStatus = document.getElementById("filter-status")?.value || "";
 
   // ----------------------------
-  // ✅ Filtering logic
+  // Filtering logic
   // ----------------------------
   let filtered = appointments.filter(a => {
     const patientMatch =
@@ -148,7 +155,7 @@ function renderTable() {
   });
 
   // ----------------------------
-  // ✅ Sorting logic
+  // Sorting logic
   // ----------------------------
   filtered.sort((a, b) => {
     let valA = a[currentSort.column];
@@ -165,7 +172,7 @@ function renderTable() {
   });
 
   // ----------------------------
-  // ✅ Pagination logic
+  // Pagination logic
   // ----------------------------
   const pageCount = Math.ceil(filtered.length / rowsPerPage);
   if (currentPage > pageCount) currentPage = pageCount || 1;
@@ -173,26 +180,37 @@ function renderTable() {
   const paginated = filtered.slice(start, start + rowsPerPage);
 
   // ----------------------------
-  // ✅ Render each row safely
+  // Render each row safely
   // ----------------------------
   paginated.forEach(a => {
     const tr = document.createElement("tr");
     tr.dataset.id = a.id;
 
-    // Safely handle doctor info
+    // Doctor info
     let doctorName = "Not assigned";
     let doctorRole = "Not assigned";
+    let doctorDept = "N/A";
 
     if (typeof a.doctor === "object" && a.doctor !== null) {
       doctorName = a.doctor.name || "Unknown";
       doctorRole = a.doctor.role || "Not assigned";
-    } else if (typeof a.doctor === "string") {
-      doctorName = a.doctor;
+      doctorDept = a.doctor.department || "N/A";
     }
 
-    // Safely handle patient info
+    // Department fallback: appointment > doctor > N/A
+    const appointmentDept = a.department || doctorDept || "N/A";
+
+    // Patient info
     const patientName = a.patient || "Unknown";
+
+    // Format date and time
     const formattedDate = formatDateTime(a.date, a.time);
+
+    // Billing amount
+    const billingAmount = Number(a.billingAmount) || 0;
+
+    // Status display
+    const displayStatus = a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : "Unknown";
 
     // Build table row
     tr.innerHTML = `
@@ -200,13 +218,13 @@ function renderTable() {
       <td>${patientName}</td>
       <td>${doctorName} <small class="text-muted">(${doctorRole})</small></td>
       <td>${formattedDate}</td>
-      <td>${a.department || "N/A"}</td>
+      <td>${appointmentDept}</td>
       <td>
         <span class="status-badge status-${a.status?.toLowerCase().replace(/\s/g, '-') || 'unknown'}">
-          ${a.status || "Unknown"}
+          ${displayStatus}
         </span>
       </td>
-      <td><span class="billing-status">${a.billingAmount || 0}</span></td>
+      <td>${billingAmount.toFixed(2)}</td>
       <td class="action-cell">
         <button class="action-btn btn-view"><i class="fas fa-eye"></i> View</button>
         <button class="action-btn btn-edit"><i class="fas fa-edit"></i> Edit</button>
@@ -217,9 +235,12 @@ function renderTable() {
     tbody.appendChild(tr);
   });
 
+  // ----------------------------
   // Render pagination
+  // ----------------------------
   renderPagination(filtered.length);
 }
+
 
 
 const tbody = document.querySelector(".appointments-table tbody");
@@ -284,11 +305,13 @@ function renderPagination(total) {
 // ==========================
 function formatDateTime(date, time) {
   if (!date) return "-";
-  const d = new Date(date + "T" + (time || "00:00"));
-  if (isNaN(d)) return "-";
+  const dateTimeStr = `${date}T${time || "00:00"}`;
+  const d = new Date(dateTimeStr);
+  if (isNaN(d)) return dateTimeStr; // fallback: show raw string
   return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) + ", " +
          d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
 }
+
 
 // ==========================
 // Search & Sort
