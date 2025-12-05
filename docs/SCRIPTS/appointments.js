@@ -68,41 +68,48 @@ async function fetchAppointments(patientId = null) {
     });
 
     const data = await res.json();
+
+    console.log("Raw appointments data:", data);
+
     const appointmentsData = data.appointments || data;
 
-    appointments = appointmentsData.map(a => ({
-      id: a._id,
-      patientId: a.patient?._id || "",
-      patient: a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : "Unknown",
-      doctorId: a.doctor?._id || "",
-      doctor: a.doctor
-        ? {
-            _id: a.doctor._id || "",
-            name: a.doctor.firstName && a.doctor.lastName
-                    ? `${a.doctor.firstName} ${a.doctor.lastName}`
-                    : a.doctor.name || "Unknown",
-            role: a.doctor.role || "Not assigned",
-            department: a.doctor.department || ""
-          }
-        : null,
-      // -------------------------
-      // Date & time
-      date: a.date ? a.date.split('T')[0] : "",
-      time: a.time || "",
-      department: a.department || a.doctor?.department || a.patient?.department || "",
-      // -------------------------
-      status: a.status ? a.status.toLowerCase() : "unknown",
-      type: a.type || "",
-      reason: a.reason || "",
-      symptoms: a.symptoms || "",
-      diagnosis: a.diagnosis || "",
-      treatment: a.treatment || "",
-      prescription: a.prescription || "",
-      billingAmount: a.billingAmount != null ? Number(a.billingAmount) : 0,
-      billingStatus: a.billingStatus || "unpaid",
-      paymentMethod: a.paymentMethod || "",
-      insuranceProvider: a.insuranceProvider || ""
-    }));
+    appointments = appointmentsData.map(a => {
+      // Department fallback: appointment > doctor > patient > N/A
+      const dept = a.department || a.doctor?.department || a.patient?.department || "N/A";
+
+      // Status fallback
+      const status = a.status ? a.status.toLowerCase() : "unknown";
+
+      return {
+        id: a._id,
+        patientId: a.patient?._id || "",
+        patient: a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : "Unknown",
+        doctorId: a.doctor?._id || "",
+        doctor: a.doctor
+          ? {
+              _id: a.doctor._id || "",
+              name: a.doctor.firstName && a.doctor.lastName
+                      ? `${a.doctor.firstName} ${a.doctor.lastName}`
+                      : a.doctor.name || "Unknown",
+              role: a.doctor.role || "Not assigned",
+              department: a.doctor.department || ""
+            }
+          : null,
+        date: a.date ? a.date.split('T')[0] : "",
+        time: a.time || "",
+        department: dept,
+        status: status,
+        type: a.type || "",
+        reason: a.reason || "",
+        symptoms: a.symptoms || "",
+        diagnosis: a.diagnosis || "",
+        treatment: a.treatment || "",
+        prescription: a.prescription || "",
+        billingStatus: a.billingStatus || "unpaid",
+        paymentMethod: a.paymentMethod || "",
+        insuranceProvider: a.insuranceProvider || ""
+      };
+    });
 
     renderTable();
   } catch (err) {
@@ -110,6 +117,7 @@ async function fetchAppointments(patientId = null) {
     alert("Failed to load appointments. Please try again later.");
   }
 }
+
 
 // -------------------------
 // Utility for rendering status nicely
@@ -182,40 +190,37 @@ function renderTable() {
   // ----------------------------
   // Render each row safely
   // ----------------------------
-  paginated.forEach(a => {
-    const tr = document.createElement("tr");
-    tr.dataset.id = a.id;
+ // Render each row safely
+paginated.forEach(a => {
+  const tr = document.createElement("tr");
+  tr.dataset.id = a.id;
 
-    // Doctor info
-    let doctorName = "Not assigned";
-    let doctorRole = "Not assigned";
-    let doctorDept = "N/A";
+  const doctorName = a.doctor?.name ?? "Not assigned";
+  const doctorRole = a.doctor?.role ?? "Not assigned";
+  const doctorDept = a.doctor?.department ?? "N/A";
 
-    if (typeof a.doctor === "object" && a.doctor !== null) {
-      doctorName = a.doctor.name || "Unknown";
-      doctorRole = a.doctor.role || "Not assigned";
-      doctorDept = a.doctor.department || "N/A";
-    }
+  const appointmentDept = a.department ?? doctorDept ?? "N/A";
+  const patientName = a.patient ?? "Unknown";
+  const formattedDate = formatDateTime(a.date, a.time);
 
-    // Department fallback: appointment > doctor > N/A
-    const appointmentDept = a.department || doctorDept || "N/A";
+  const displayStatus = a.status ? a.status[0].toUpperCase() + a.status.slice(1) : "Unknown";
+  const displayBillingStatus = a.billingStatus ? a.billingStatus[0].toUpperCase() + a.billingStatus.slice(1) : "Unpaid";
 
-    // Patient info
-    const patientName = a.patient || "Unknown";
+  // Determine billing badge color
+  let billingClass = "";
+  switch ((a.billingStatus || "unpaid").toLowerCase()) {
+    case "paid":
+      billingClass = "billing-paid"; // green
+      break;
+    case "pending":
+      billingClass = "billing-pending"; // yellow
+      break;
+    case "unpaid":
+    default:
+      billingClass = "billing-unpaid"; // red
+      break;
+  }
 
-    // Format date and time
-    const formattedDate = formatDateTime(a.date, a.time);
-
-    // Billing amount
-    const billingAmount = Number(a.billingAmount) || 0;
-
-    // Status display
-   const displayStatus = a.status
-    ? a.status.charAt(0).toUpperCase() + a.status.slice(1)
-    : "Unknown";
-    
-    // Build table row
-     // Build table row
   tr.innerHTML = `
     <td>${a.id}</td>
     <td>${patientName}</td>
@@ -223,11 +228,15 @@ function renderTable() {
     <td>${formattedDate}</td>
     <td>${appointmentDept}</td>
     <td>
-      <span class="status-badge status-${a.status?.toLowerCase().replace(/\s/g, '-') || 'unknown'}">
+      <span class="status-badge status-${a.status?.toLowerCase()?.replace(/\s/g, '-') ?? 'unknown'}">
         ${displayStatus}
       </span>
     </td>
-    <td><span class="billing-status">Ksh ${billingAmount.toLocaleString()}</span></td>
+    <td>
+      <span class="billing-status ${billingClass}">
+        ${displayBillingStatus}
+      </span>
+    </td>
     <td class="action-cell">
       <button class="action-btn btn-view"><i class="fas fa-eye"></i> View</button>
       <button class="action-btn btn-edit"><i class="fas fa-edit"></i> Edit</button>
@@ -237,6 +246,7 @@ function renderTable() {
 
   tbody.appendChild(tr);
 });
+
 
   // ----------------------------
   // Render pagination
