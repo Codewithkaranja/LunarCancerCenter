@@ -73,27 +73,37 @@ async function fetchAppointments(patientId = null) {
     const data = await res.json();
     const appointmentsData = data.appointments || data;
 
-    appointments = appointmentsData.map(a => ({
-      id: a._id,
-      patientId: a.patient?._id || "",
-      patient: a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : "Unknown",
-      doctorId: a.doctor?._id || "",
-      doctor: a.doctor || null,
-      date: a.date,
-      time: a.time,
-      department: a.department || a.doctor?.department || "",
-      status: a.status,
-      type: a.type || "",
-      reason: a.reason || "",
-      symptoms: a.symptoms || "",
-      diagnosis: a.diagnosis || "",
-      treatment: a.treatment || "",
-      prescription: a.prescription || "",
-      billingAmount: a.billingAmount || 0,
-      billingStatus: a.billingStatus || "unpaid",
-      paymentMethod: a.paymentMethod || "",
-      insuranceProvider: a.insuranceProvider || ""
-    }));
+   appointments = appointmentsData.map(a => ({
+  id: a._id,
+  patientId: a.patient?._id || "",
+  patient: a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : "Unknown",
+  doctorId: a.doctor?._id || "",
+  doctor: a.doctor
+    ? {
+        _id: a.doctor._id || "",
+        name: a.doctor.firstName && a.doctor.lastName 
+                ? `${a.doctor.firstName} ${a.doctor.lastName}` 
+                : a.doctor.name || "Unknown",
+        role: a.doctor.role || "Not assigned",
+        department: a.doctor.department || ""
+      }
+    : null,
+  date: a.date,
+  time: a.time,
+  department: a.department || a.doctor?.department || "",
+  status: a.status,
+  type: a.type || "",
+  reason: a.reason || "",
+  symptoms: a.symptoms || "",
+  diagnosis: a.diagnosis || "",
+  treatment: a.treatment || "",
+  prescription: a.prescription || "",
+  billingAmount: a.billingAmount || 0,
+  billingStatus: a.billingStatus || "unpaid",
+  paymentMethod: a.paymentMethod || "",
+  insuranceProvider: a.insuranceProvider || ""
+}));
+
 
     renderTable();
   } catch (err) {
@@ -465,34 +475,84 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
  async function editAppointment(id) {
-  // Find the appointment in local state
+  console.log("Clicked Edit ID:", id); // Debug
   const app = appointments.find(a => a.id === id);
-  if (!app) return;
-
-  // Safely extract doctor info for debugging
-  const doctorName = app.doctor?.name || "Not assigned";
-  const doctorRole = app.doctor?.role || "Not assigned";
-  console.log(`Editing appointment — Doctor: ${doctorName}, Role: ${doctorRole}`);
-
-  // Open modal and populate fields
-  await openAppointmentModal(app);
-
-  // Preselect doctor dropdown safely
-  const doctorSelect = document.getElementById("doctor");
-  if (doctorSelect) {
-    // Use doctor _id if available, else fallback to empty
-    doctorSelect.value = app.doctor?._id || "";
-  }
-
-  // Preselect patient dropdown safely
-  const patientSelect = document.getElementById("patient");
-  if (patientSelect) {
-    patientSelect.value = app.patientId || "";
-  }
+  console.log("Found appointment:", app); // Debug
+  if (!app) return alert("Appointment not found.");
 
   // Track which appointment is being edited
   editId = id;
+
+  // Populate modal fields safely
+  await populateDropdowns(); // make sure patient/doctor dropdowns are filled
+
+  const fields = [
+    "patient", "doctor", "appointment-date", "appointment-time",
+    "department", "appointment-type", "reason", "symptoms",
+    "diagnosis", "treatment", "prescription", "consultation-fee",
+    "billing-status", "payment-method", "insurance-provider"
+  ];
+
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    switch (id) {
+      case "patient":
+        el.value = app.patientId || "";
+        break;
+      case "doctor":
+        el.value = app.doctor?._id || "";
+        break;
+      case "appointment-date":
+        el.value = app.date ? app.date.split("T")[0] : "";
+        break;
+      case "appointment-time":
+        el.value = app.time || "";
+        break;
+      case "department":
+        el.value = app.department || "";
+        break;
+      case "appointment-type":
+        el.value = app.type || "";
+        break;
+      case "consultation-fee":
+        el.value = app.billingAmount || 0;
+        break;
+      case "billing-status":
+        el.value = app.billingStatus || "unpaid";
+        break;
+      case "payment-method":
+        el.value = app.paymentMethod || "";
+        break;
+      case "insurance-provider":
+        el.value = app.insuranceProvider || "";
+        break;
+      default:
+        el.value = app[id] || "";
+    }
+  });
+
+  // Set modal title
+  const modalTitle = document.querySelector("#appointmentModal .modal-title");
+  if (modalTitle) modalTitle.textContent = "Edit Appointment";
+
+  // Show modal
+  const modal = document.getElementById("appointmentModal");
+  if (modal) {
+    modal.style.display = "block"; // <- reliable way to show it
+    modal.classList.add("active"); // optional if you have CSS animation
+  } else {
+    console.error("Modal element not found!");
+  }
 }
+window.addEventListener("click", (e) => {
+  const modal = document.getElementById("appointmentModal");
+  if (e.target === modal) {
+    modal.style.display = "none";
+    editId = null;
+  }
+});
 
 
 
@@ -634,9 +694,6 @@ function renderCalendar() {
   });
 }
 
-// ==========================
-// Open Appointment Modal
-// ==========================
 async function openAppointmentModal(appointment = null) {
   // Track the appointment being edited
   editId = appointment?.id || null;
@@ -653,26 +710,22 @@ async function openAppointmentModal(appointment = null) {
   ];
 
   // Clear fields if creating a new appointment
-  if (!appointment) {
-    fields.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!appointment) {
       el.value = id === "billing-status" ? "unpaid" : "";
-    });
-  }
-
-  // Populate fields if editing
-  if (appointment) {
-    fields.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-
+    } else {
+      // Populate fields if editing
       switch (id) {
         case "patient":
           el.value = appointment.patientId || "";
           break;
         case "doctor":
-          el.value = appointment.doctor?._id || "";
+          // Handle doctor as object or string
+          if (appointment.doctor?._id) el.value = appointment.doctor._id;
+          else if (typeof appointment.doctor === "string") el.value = appointment.doctor;
+          else el.value = "";
           break;
         case "appointment-date":
           el.value = appointment.date ? appointment.date.split('T')[0] : "";
@@ -706,8 +759,8 @@ async function openAppointmentModal(appointment = null) {
           el.value = appointment.insuranceProvider || "";
           break;
       }
-    });
-  }
+    }
+  });
 
   // Update modal title
   const modalTitle = document.querySelector("#appointmentModal .modal-title");
@@ -717,6 +770,7 @@ async function openAppointmentModal(appointment = null) {
   const modal = document.getElementById("appointmentModal");
   if (modal) modal.classList.add("active");
 }
+
 
 
 // ==========================
