@@ -98,7 +98,7 @@ async function fetchAppointments(patientId = null) {
       diagnosis: a.diagnosis || "",
       treatment: a.treatment || "",
       prescription: a.prescription || "",
-      billingAmount: Number(a.billingAmount) || 0,
+      billingAmount: a.billingAmount != null ? Number(a.billingAmount) : 0,
       billingStatus: a.billingStatus || "unpaid",
       paymentMethod: a.paymentMethod || "",
       insuranceProvider: a.insuranceProvider || ""
@@ -210,30 +210,33 @@ function renderTable() {
     const billingAmount = Number(a.billingAmount) || 0;
 
     // Status display
-    const displayStatus = a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : "Unknown";
-
+   const displayStatus = a.status
+    ? a.status.charAt(0).toUpperCase() + a.status.slice(1)
+    : "Unknown";
+    
     // Build table row
-    tr.innerHTML = `
-      <td>${a.id}</td>
-      <td>${patientName}</td>
-      <td>${doctorName} <small class="text-muted">(${doctorRole})</small></td>
-      <td>${formattedDate}</td>
-      <td>${appointmentDept}</td>
-      <td>
-        <span class="status-badge status-${a.status?.toLowerCase().replace(/\s/g, '-') || 'unknown'}">
-          ${displayStatus}
-        </span>
-      </td>
-      <td>${billingAmount.toFixed(2)}</td>
-      <td class="action-cell">
-        <button class="action-btn btn-view"><i class="fas fa-eye"></i> View</button>
-        <button class="action-btn btn-edit"><i class="fas fa-edit"></i> Edit</button>
-        <button class="action-btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
-      </td>
-    `;
+     // Build table row
+  tr.innerHTML = `
+    <td>${a.id}</td>
+    <td>${patientName}</td>
+    <td>${doctorName} <small class="text-muted">(${doctorRole})</small></td>
+    <td>${formattedDate}</td>
+    <td>${appointmentDept}</td>
+    <td>
+      <span class="status-badge status-${a.status?.toLowerCase().replace(/\s/g, '-') || 'unknown'}">
+        ${displayStatus}
+      </span>
+    </td>
+    <td><span class="billing-status">Ksh ${billingAmount.toLocaleString()}</span></td>
+    <td class="action-cell">
+      <button class="action-btn btn-view"><i class="fas fa-eye"></i> View</button>
+      <button class="action-btn btn-edit"><i class="fas fa-edit"></i> Edit</button>
+      <button class="action-btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
+    </td>
+  `;
 
-    tbody.appendChild(tr);
-  });
+  tbody.appendChild(tr);
+});
 
   // ----------------------------
   // Render pagination
